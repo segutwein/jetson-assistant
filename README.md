@@ -39,7 +39,23 @@ See **[SETUP.md](SETUP.md)** for the full installation guide — dependencies, b
 
 ## Usage
 
-### Voice Chat
+### Management CLI (recommended)
+
+```bash
+./jetson-assistant start     # model picker → llama-server → voice chat
+./jetson-assistant stop      # stop everything
+./jetson-assistant status    # show what's running + memory usage
+./jetson-assistant optimize  # apply memory optimizations (reversible)
+./jetson-assistant restore   # undo optimizations
+```
+
+Add the project directory to `PATH` to use `jetson-assistant` from anywhere:
+```bash
+echo 'export PATH="$HOME/workspace/jetson-assistant:$PATH"' >> ~/.bashrc
+source ~/.bashrc
+```
+
+### Manual Start
 
 **Terminal 1** — Start the LLM server:
 
