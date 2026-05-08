@@ -47,19 +47,47 @@ def check_cuda() -> Optional[str]:
     nvcc = shutil.which("nvcc")
     if nvcc:
         return nvcc
-    # JetPack puts it here
-    fallback = Path("/usr/local/cuda/bin/nvcc")
-    return str(fallback) if fallback.exists() else None
+    # JetPack may install nvcc in versioned or unversioned paths
+    candidates = [
+        "/usr/local/cuda/bin/nvcc",
+        "/usr/local/cuda-12.6/bin/nvcc",
+        "/usr/local/cuda-12/bin/nvcc",
+        "/usr/local/cuda-11/bin/nvcc",
+    ]
+    for c in candidates:
+        if Path(c).exists():
+            return c
+    return None
+
+
+def check_cuda_libs() -> Optional[str]:
+    """Check for CUDA libraries even if nvcc is missing (runtime-only install)."""
+    candidates = [
+        "/usr/local/cuda/lib64/libcudart.so",
+        "/usr/local/cuda/targets/aarch64-linux/lib/libcudart.so",
+    ]
+    for c in candidates:
+        p = Path(c)
+        if p.exists() or list(p.parent.glob("libcudart.so*") if p.parent.exists() else []):
+            return str(p.parent)
+    return None
+
+
+# required: build fails without these
+# optional: warning only, build may still succeed
+_REQUIRED = ["git", "cmake", "make"]
+_OPTIONAL = ["nvcc"]  # cmake can sometimes find CUDA without nvcc in PATH
 
 
 def check_prerequisites() -> dict:
-    return {
-        "git":   check_tool("git"),
-        "cmake": check_tool("cmake"),
-        "make":  check_tool("make"),
-        "nvcc":  check_cuda(),
-        "pip3":  check_tool("pip3") or check_tool("pip"),
+    results = {
+        "git":   (check_tool("git"),  True),
+        "cmake": (check_tool("cmake"), True),
+        "make":  (check_tool("make"),  True),
+        "nvcc":  (check_cuda(),        False),   # optional
+        "pip3":  (check_tool("pip3") or check_tool("pip"), True),
     }
+    return results
 
 
 # ── llama.cpp ──────────────────────────────────────────────────────

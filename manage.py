@@ -71,16 +71,28 @@ def setup(
     # ── Step 1: Prerequisites ──────────────────────────────────
     console.print("\n[bold]Step 1/4 — Checking prerequisites[/bold]")
     prereqs = check_prerequisites()
-    all_ok = True
-    for name, path in prereqs.items():
+    missing_required = []
+    missing_optional = []
+    for name, (path, required) in prereqs.items():
         if path:
             console.print(f"  [green]✓[/green] {name:8}  [dim]{path}[/dim]")
-        else:
+        elif required:
             console.print(f"  [red]✗[/red] {name:8}  not found")
-            all_ok = False
+            missing_required.append(name)
+        else:
+            console.print(f"  [yellow]![/yellow] {name:8}  not found in PATH [dim](optional — cmake may find CUDA anyway)[/dim]")
+            missing_optional.append(name)
 
-    if not all_ok:
-        console.print("\n[red]Missing prerequisites. Install them first:[/red]")
+    if missing_optional:
+        console.print(
+            f"\n  [yellow]Note:[/yellow] nvcc not found. "
+            "If the build fails, install the CUDA compiler toolkit:\n"
+            "  [dim]sudo apt-get install cuda-toolkit-12-6[/dim]\n"
+            "  or add it to PATH: [dim]export PATH=/usr/local/cuda/bin:$PATH[/dim]"
+        )
+
+    if missing_required:
+        console.print("\n[red]Missing required tools. Install them first:[/red]")
         console.print("  [dim]sudo apt-get install -y cmake build-essential git[/dim]")
         raise typer.Exit(1)
 
