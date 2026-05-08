@@ -6,6 +6,7 @@
 Jetson Voice Assistant — management CLI
 
 Commands:
+  setup     First-time setup: build llama.cpp and download a model
   start     Pick a model and start the assistant
   stop      Stop llama-server and voice chat
   status    Show what is running and memory usage
@@ -36,6 +37,10 @@ from app.manager import (
 )
 from app.optimize import build_plan, apply_optimizations, restore_optimizations, load_state
 from app.monitor import get_system_stats, format_stats
+from app.setup_wizard import (
+    check_prerequisites, llama_server_path, clone_llama_cpp, build_llama_cpp,
+    download_model, setup_venv, LLAMA_DIR, MODELS_DIR, RECOMMENDED_MODELS,
+)
 
 console = Console()
 app = typer.Typer(
@@ -44,6 +49,147 @@ app = typer.Typer(
     add_completion=False,
     pretty_exceptions_enable=False,
 )
+
+
+# ── setup ─────────────────────────────────────────────────────────
+
+@app.command()
+def setup(
+    skip_llama: bool = typer.Option(False, "--skip-llama", help="Skip building llama.cpp"),
+    skip_model: bool = typer.Option(False, "--skip-model", help="Skip model download"),
+    skip_venv: bool = typer.Option(False, "--skip-venv", help="Skip Python venv setup"),
+):
+    """First-time setup: build llama.cpp, download a model, set up Python environment."""
+    console.print(Panel.fit(
+        "[bold cyan]Jetson Voice Assistant — Setup[/bold cyan]\n"
+        "[dim]This will build llama.cpp (~15 min) and download a model[/dim]",
+        border_style="cyan",
+    ))
+
+    project_dir = Path(__file__).parent
+
+    # ── Step 1: Prerequisites ──────────────────────────────────
+    console.print("\n[bold]Step 1/4 — Checking prerequisites[/bold]")
+    prereqs = check_prerequisites()
+    all_ok = True
+    for name, path in prereqs.items():
+        if path:
+            console.print(f"  [green]✓[/green] {name:8}  [dim]{path}[/dim]")
+        else:
+            console.print(f"  [red]✗[/red] {name:8}  not found")
+            all_ok = False
+
+    if not all_ok:
+        console.print("\n[red]Missing prerequisites. Install them first:[/red]")
+        console.print("  [dim]sudo apt-get install -y cmake build-essential git[/dim]")
+        raise typer.Exit(1)
+
+    # ── Step 2: Build llama.cpp ────────────────────────────────
+    console.print("\n[bold]Step 2/4 — llama.cpp[/bold]")
+
+    if skip_llama:
+        console.print("  [dim]Skipped (--skip-llama)[/dim]")
+    elif llama_server_path():
+        console.print(f"  [green]✓ Already built[/green]  [dim]{llama_server_path()}[/dim]")
+    else:
+        if not Confirm.ask(
+            f"  Build llama.cpp into {LLAMA_DIR}? (~15 min)", default=True
+        ):
+            console.print("  [yellow]Skipped.[/yellow]")
+        else:
+            console.print("  Cloning llama.cpp...", end=" ")
+            if not clone_llama_cpp():
+                console.print("[red]failed[/red]")
+                raise typer.Exit(1)
+            console.print("[green]done[/green]")
+
+            console.print(
+                "  Building with CUDA (ARCH=87)... "
+                "[dim]this takes ~15 minutes[/dim]"
+            )
+            console.print()
+            if not build_llama_cpp():
+                console.print("\n[red]✗ Build failed.[/red]")
+                console.print("  Check output above for errors.")
+                console.print("  Common fix: [dim]export PATH=/usr/local/cuda/bin:$PATH[/dim]")
+                raise typer.Exit(1)
+            console.print(f"\n  [green]✓ Built:[/green] [dim]{llama_server_path()}[/dim]")
+
+    # ── Step 3: Download model ─────────────────────────────────
+    console.print("\n[bold]Step 3/4 — Model[/bold]")
+
+    if skip_model:
+        console.print("  [dim]Skipped (--skip-model)[/dim]")
+    else:
+        existing = list(MODELS_DIR.glob("*.gguf")) if MODELS_DIR.exists() else []
+        if existing:
+            console.print(f"  [green]✓ Models found in {MODELS_DIR}:[/green]")
+            for m in existing:
+                console.print(f"    [dim]{m.name}  ({m.stat().st_size/1e9:.1f} GB)[/dim]")
+            if not Confirm.ask("  Download an additional model?", default=False):
+                pass
+            else:
+                _model_download_dialog()
+        else:
+            console.print(f"  No models found in {MODELS_DIR}.")
+            _model_download_dialog()
+
+    # ── Step 4: Python venv ────────────────────────────────────
+    console.print("\n[bold]Step 4/4 — Python environment[/bold]")
+
+    if skip_venv:
+        console.print("  [dim]Skipped (--skip-venv)[/dim]")
+    elif (project_dir / "venv").exists():
+        console.print(f"  [green]✓ venv already exists[/green]  [dim]{project_dir}/venv[/dim]")
+    else:
+        if not Confirm.ask("  Create Python venv and install dependencies?", default=True):
+            console.print("  [yellow]Skipped.[/yellow]")
+        else:
+            console.print("  Creating venv and installing packages...")
+            if setup_venv(project_dir):
+                console.print("  [green]✓ venv ready[/green]")
+            else:
+                console.print("  [yellow]⚠ venv setup failed — check output above[/yellow]")
+
+    # ── Done ───────────────────────────────────────────────────
+    console.print()
+    console.print(Panel.fit(
+        "[bold green]Setup complete![/bold green]\n"
+        "Run [cyan]./jetson-assistant start[/cyan] to launch the assistant.",
+        border_style="green",
+    ))
+
+
+def _model_download_dialog():
+    console.print("\n  [bold]Recommended models:[/bold]")
+    for i, m in enumerate(RECOMMENDED_MODELS, 1):
+        console.print(
+            f"  [cyan]{i}[/cyan]  {m['name']}  {m['size']}\n"
+            f"      [dim]{m['description']}[/dim]"
+        )
+    console.print(f"  [cyan]{len(RECOMMENDED_MODELS)+1}[/cyan]  Skip")
+    console.print()
+
+    choice = Prompt.ask(
+        "  Select",
+        choices=[str(i) for i in range(1, len(RECOMMENDED_MODELS) + 2)],
+        default="1",
+    )
+    idx = int(choice) - 1
+    if idx >= len(RECOMMENDED_MODELS):
+        console.print("  [dim]Skipped.[/dim]")
+        return
+
+    m = RECOMMENDED_MODELS[idx]
+    console.print(f"  Downloading [green]{m['filename']}[/green] ({m['size']})...")
+    path = download_model(m["repo"], m["filename"])
+    if path:
+        console.print(f"  [green]✓ Saved to {path}[/green]")
+    else:
+        console.print("  [red]✗ Download failed.[/red]")
+        console.print("  Try manually: [dim]huggingface-cli download "
+                      f"{m['repo']} --include '{m['filename']}' "
+                      f"--local-dir ~/models[/dim]")
 
 
 # ── start ─────────────────────────────────────────────────────────
