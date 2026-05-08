@@ -1,11 +1,14 @@
 #!/usr/bin/env bash
-# Wrapper — activates the venv and runs manage.py
+# Wrapper — uses venv if available, falls back to system python
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-PYTHON="$SCRIPT_DIR/venv/bin/python3"
+VENV_PYTHON="$SCRIPT_DIR/venv/bin/python3"
 
-if [ ! -f "$PYTHON" ]; then
-    echo "venv not found. Run: python3.10 -m venv venv && source venv/bin/activate && pip install -r requirements.txt"
-    exit 1
+if [ -f "$VENV_PYTHON" ]; then
+    PYTHON="$VENV_PYTHON"
+else
+    PYTHON="$(which python3)"
+    echo "[warn] venv not found, using system python ($PYTHON)" >&2
+    echo "[warn] For a clean setup: python3.10 -m venv venv && source venv/bin/activate && pip install -r requirements.txt" >&2
 fi
 
 exec "$PYTHON" "$SCRIPT_DIR/manage.py" "$@"
