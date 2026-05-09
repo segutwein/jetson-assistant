@@ -8,7 +8,7 @@ Commands:
   stop      Stop llama-server and voice chat
   status    Show what is running and memory usage
   optimize  Apply memory optimizations
-  test      Test individual components (--llm, --stt, --tts, --vad, --all)
+  test      Test individual components (--llm, --stt, --tts, --vad, --mic, --all)
 """
 
 import os
@@ -709,15 +709,16 @@ def test(
     stt: bool = typer.Option(False, "--stt", help="Test speech-to-text (records 3 seconds)"),
     tts: bool = typer.Option(False, "--tts", help="Test text-to-speech (plays a sentence)"),
     vad: bool = typer.Option(False, "--vad", help="Test VAD (shows mic activity for 5 seconds)"),
+    mic: bool = typer.Option(False, "--mic", help="Test microphone (lists devices, records 3s, plays back)"),
     all_: bool = typer.Option(False, "--all", help="Run all component tests"),
 ):
     """Test individual pipeline components."""
-    if not any([llm, stt, tts, vad, all_]):
-        console.print("Specify at least one flag: --llm  --stt  --tts  --vad  --all")
+    if not any([llm, stt, tts, vad, mic, all_]):
+        console.print("Specify at least one flag: --llm  --stt  --tts  --vad  --mic  --all")
         raise typer.Exit(1)
 
     from app.config import Config
-    from app.test_components import test_llm, test_stt, test_tts, test_vad
+    from app.test_components import test_llm, test_stt, test_tts, test_vad, test_mic
 
     cfg = Config.load()
 
@@ -730,6 +731,8 @@ def test(
         test_tts(cfg)
     if vad or all_:
         test_vad(cfg)
+    if mic or all_:
+        test_mic(cfg)
 
 
 # ── benchmark ─────────────────────────────────────────────────────

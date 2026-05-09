@@ -1,8 +1,12 @@
 """Component tests for the voice pipeline."""
 
 import os
+import sys
 import time
+import subprocess
+import tempfile
 
+import numpy as np
 from rich.console import Console
 
 console = Console()
@@ -141,6 +145,140 @@ def test_tts(cfg):
         console.print("  (audio was synthesized successfully)")
 
     tts.unload()
+
+
+def test_mic(cfg):
+    console.print("\n[bold cyan]── Mic test ──[/bold cyan]")
+
+    from app.audio import find_alsa_device
+
+    # ── List available devices ────────────────────────────────────
+    r = subprocess.run(["arecord", "-l"], capture_output=True, text=True)
+    alsa_lines = [l.strip() for l in r.stdout.splitlines() if "card" in l.lower()]
+    if alsa_lines:
+        console.print("  [dim]ALSA capture devices:[/dim]")
+        for l in alsa_lines:
+            console.print(f"    {l}")
+
+    r = subprocess.run(["pactl", "list", "short", "sources"],
+                       capture_output=True, text=True)
+    pa_lines = [l.strip() for l in r.stdout.splitlines()
+                if l.strip() and "monitor" not in l.lower()]
+    if pa_lines:
+        console.print("  [dim]PulseAudio sources:[/dim]")
+        for l in pa_lines:
+            console.print(f"    {l}")
+
+    # ── Pick device ───────────────────────────────────────────────
+    mic_hint = cfg.audio.input_device or "USB Audio"
+    result = find_alsa_device(name_hint=mic_hint) or find_alsa_device(name_hint="")
+    if not result:
+        console.print("  [red]✗ No recording device found (check 'arecord -l')[/red]")
+        return
+    card, dev, mic_name = result
+    plughw = f"plughw:{card},{dev}"
+    console.print(f"\n  Recording from: [bold]{plughw}[/bold] ({mic_name})")
+
+    if mic_hint.lower() not in mic_name.lower():
+        console.print(
+            f"  [yellow]⚠ Hint '{mic_hint}' didn't match — using first available device.[/yellow]\n"
+            f"  [dim]Set audio.input_device in config/settings.yaml to match your mic name.[/dim]"
+        )
+
+    # ── Record 3 seconds with live RMS bar ────────────────────────
+    SAMPLE_RATE = 16000
+    CHUNK_SAMPLES = 512
+    CHUNK_BYTES = CHUNK_SAMPLES * 2   # int16
+    duration = 3
+
+    console.print(f"  Recording {duration}s — [bold]speak now...[/bold]\n")
+    rec_cmd = ["arecord", "-D", plughw, "-f", "S16_LE",
+               "-r", str(SAMPLE_RATE), "-c", "1", "-t", "raw"]
+
+    with tempfile.NamedTemporaryFile(suffix=".raw", delete=False) as tmp:
+        tmp_path = tmp.name
+
+    max_rms = 0.001
+    try:
+        proc = subprocess.Popen(rec_cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        t_end = time.time() + duration
+        all_chunks = []
+
+        while time.time() < t_end:
+            raw = proc.stdout.read(CHUNK_BYTES)
+            if not raw:
+                break
+            all_chunks.append(raw)
+            pcm = np.frombuffer(raw, dtype=np.int16).astype(np.float32) / 32768.0
+            rms = float(np.sqrt(np.mean(pcm ** 2)))
+            max_rms = max(max_rms, rms)
+            bar_len = min(int(rms / 0.05 * 30), 30)
+            bar = "█" * bar_len + "░" * (30 - bar_len)
+            color = "green" if rms > 0.01 else "yellow" if rms > 0.002 else "red"
+            sys.stdout.write(f"  [{color}]{bar}[/{color}] {rms:.4f}\r")
+            sys.stdout.flush()
+
+        proc.terminate()
+        proc.wait(timeout=2)
+        sys.stdout.write(" " * 50 + "\r")
+
+        if not all_chunks:
+            err = proc.stderr.read().decode(errors="replace").strip()
+            console.print(f"  [red]✗ No audio captured: {err}[/red]")
+            return
+
+        raw_audio = b"".join(all_chunks)
+        with open(tmp_path, "wb") as f:
+            f.write(raw_audio)
+
+    except Exception as e:
+        console.print(f"  [red]✗ Recording failed: {e}[/red]")
+        return
+
+    peak = max_rms
+    if peak < 0.002:
+        console.print(f"  [red]✗ Silence detected (peak RMS {peak:.4f}) — mic may not be connected[/red]")
+    elif peak < 0.01:
+        console.print(f"  [yellow]⚠ Very quiet signal (peak RMS {peak:.4f}) — check mic gain[/yellow]")
+    else:
+        console.print(f"  [green]✓ Signal looks good (peak RMS {peak:.4f})[/green]")
+
+    # ── Play back ─────────────────────────────────────────────────
+    console.print("  Playing back recording...")
+    play_cmd = ["aplay", "-f", "S16_LE", "-r", str(SAMPLE_RATE), "-c", "1",
+                "-t", "raw", "-q", tmp_path]
+    try:
+        # Prefer paplay to BT/PA sink if available
+        r = subprocess.run(["pactl", "list", "short", "sinks"],
+                           capture_output=True, text=True)
+        default_sink = next(
+            (l.split()[1] for l in r.stdout.splitlines() if l.strip()),
+            None
+        )
+        if default_sink:
+            import wave, struct, io
+            # Build a WAV in memory for paplay
+            wav_buf = io.BytesIO()
+            with wave.open(wav_buf, "wb") as wf:
+                wf.setnchannels(1)
+                wf.setsampwidth(2)
+                wf.setframerate(SAMPLE_RATE)
+                wf.writeframes(raw_audio)
+            wav_bytes = wav_buf.getvalue()
+            p = subprocess.Popen(
+                ["paplay", f"--device={default_sink}"],
+                stdin=subprocess.PIPE, stderr=subprocess.DEVNULL,
+            )
+            p.stdin.write(wav_bytes)
+            p.stdin.close()
+            p.wait(timeout=10)
+        else:
+            subprocess.run(play_cmd, timeout=10)
+        console.print("  [green]✓ Playback complete[/green]")
+    except Exception as e:
+        console.print(f"  [yellow]⚠ Playback failed: {e}[/yellow]")
+
+    os.unlink(tmp_path)
 
 
 def test_vad(cfg):
