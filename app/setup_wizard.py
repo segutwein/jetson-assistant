@@ -11,19 +11,11 @@ MODELS_DIR = Path.home() / "models"
 
 RECOMMENDED_MODELS = [
     {
-        "name": "Qwen3 4B   Q4_K_M",
-        "repo": "bartowski/Qwen3-4B-GGUF",
-        "filename": "Qwen3-4B-Q4_K_M.gguf",
-        "size": "~2.6 GB",
-        "description": "Recommended — strong reasoning, Apache 2.0",
-        "license_url": None,
-    },
-    {
-        "name": "Qwen3 1.7B Q8_0",
-        "repo": "bartowski/Qwen3-1.7B-GGUF",
-        "filename": "Qwen3-1.7B-Q8_0.gguf",
-        "size": "~1.9 GB",
-        "description": "Faster, lower quality — good for testing",
+        "name": "Gemma 4 E4B Q4_K_M",
+        "repo": "unsloth/gemma-4-E4B-it-GGUF",
+        "filename": "gemma-4-E4B-it-Q4_K_M.gguf",
+        "size": "~4.6 GB",
+        "description": "Recommended — Google Gemma 4, modern and fast",
         "license_url": None,
     },
 ]
