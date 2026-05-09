@@ -810,24 +810,27 @@ def _test_vad(cfg):
         console.print("  [red]✗ sounddevice not installed.[/red]")
         return
 
-    # Suppress ONNX GPU-discovery warning before Silero loads its session
-    try:
-        import onnxruntime as ort
-        ort.set_default_logger_severity(3)
-    except Exception:
-        pass
-
     from app.pipeline import load_silero
     console.print("  Loading Silero VAD...", end=" ")
-    vad = load_silero()
+    # Suppress the harmless ONNX GPU-discovery warning emitted at C++ init time
+    import os as _os
+    _devnull = _os.open(_os.devnull, _os.O_WRONLY)
+    _saved = _os.dup(2)
+    _os.dup2(_devnull, 2)
+    _os.close(_devnull)
+    try:
+        vad = load_silero()
+    finally:
+        _os.dup2(_saved, 2)
+        _os.close(_saved)
     if vad is None:
         console.print("[red]failed[/red]")
         return
     console.print("[green]ok[/green]")
 
     sample_rate = 16000
-    # Silero requires >= 512 samples — use 64ms (1024 samples) per chunk
-    chunk_ms = 64
+    # Silero requires exactly 512 samples at 16kHz → 32ms
+    chunk_ms = 32
     chunk_size = int(sample_rate * chunk_ms / 1000)
     duration = 5
 
