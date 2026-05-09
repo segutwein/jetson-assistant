@@ -37,7 +37,7 @@ from app.monitor import get_system_stats, format_stats
 from app.setup_wizard import (
     check_prerequisites, llama_server_path, clone_llama_cpp, build_llama_cpp,
     download_model, setup_venv, check_hf_login, hf_login, DownloadAuthError,
-    ctranslate2_has_cuda, clone_ctranslate2, build_ctranslate2,
+    ctranslate2_has_cuda, install_ctranslate2_cuda,
     whisper_model_cached, download_whisper_model,
     LLAMA_DIR, MODELS_DIR, RECOMMENDED_MODELS,
 )
@@ -181,27 +181,25 @@ def setup(
     console.print("\n[bold]Step 5/7 — CTranslate2 (STT GPU acceleration)[/bold]")
 
     venv_dir = project_dir / "venv"
-    if ctranslate2_has_cuda():
-        console.print("  [green]✓ CTranslate2 already built with CUDA[/green]")
+    if ctranslate2_has_cuda(venv_dir):
+        console.print("  [green]✓ CTranslate2 already has CUDA support[/green]")
     elif not venv_dir.exists():
         console.print("  [dim]Skipped — venv not ready yet[/dim]")
     else:
         console.print(
-            "  The PyPI wheel has no CUDA support on Jetson.\n"
-            "  Building from source enables GPU-accelerated Whisper STT.\n"
-            "  [dim]This takes ~20 minutes.[/dim]"
+            "  The standard PyPI wheel has no CUDA support on Jetson.\n"
+            "  We'll first try a pre-built CUDA wheel from jetson-ai-lab.dev,\n"
+            "  then fall back to building from source (~20 min) if needed."
         )
-        if Confirm.ask("  Build CTranslate2 with CUDA now?", default=True):
-            console.print("  Cloning CTranslate2...", end=" ")
-            if not clone_ctranslate2():
-                console.print("[red]failed[/red]")
+        if Confirm.ask("  Install CTranslate2 with CUDA now?", default=True):
+            if install_ctranslate2_cuda(venv_dir):
+                console.print("  [green]✓ CTranslate2 with CUDA ready[/green]")
             else:
-                console.print("[green]done[/green]")
-                console.print("  Building with CUDA (ARCH=87)... [dim]~20 minutes[/dim]")
-                if build_ctranslate2(venv_dir):
-                    console.print("  [green]✓ CTranslate2 built with CUDA[/green]")
-                else:
-                    console.print("  [red]✗ Build failed — STT will fall back to CPU[/red]")
+                console.print(
+                    "  [red]✗ CUDA install failed — STT will fall back to CPU.[/red]\n"
+                    "  You can retry later: [dim]./jetson-assistant setup --skip-llama "
+                    "--skip-model --skip-venv[/dim]"
+                )
         else:
             console.print("  [dim]Skipped — STT will run on CPU.[/dim]")
 

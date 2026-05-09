@@ -4,6 +4,17 @@
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 VENV_PYTHON="$SCRIPT_DIR/venv/bin/python3"
 
+# Add library search paths so CTranslate2's CUDA shared library is found.
+# The Python extension in the venv has RUNPATH=/usr/local/lib but the library
+# lives alongside it in the package directory — add both that dir and ~/.local/lib.
+CT2_PKG="$SCRIPT_DIR/venv/lib/python3.10/site-packages/ctranslate2"
+if [ -d "$CT2_PKG" ]; then
+    export LD_LIBRARY_PATH="$CT2_PKG${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
+fi
+if [ -d "$HOME/.local/lib" ]; then
+    export LD_LIBRARY_PATH="$HOME/.local/lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
+fi
+
 if [ -f "$VENV_PYTHON" ]; then
     exec "$VENV_PYTHON" "$SCRIPT_DIR/manage.py" "$@"
 fi

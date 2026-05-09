@@ -247,17 +247,71 @@ CT2_CMAKE_FLAGS = [
     "-DCUDA_TOOLKIT_ROOT_DIR=/usr/local/cuda",
     "-DOPENMP_RUNTIME=COMP",
     "-DWITH_MKL=OFF",
+    "-DCMAKE_INSTALL_PREFIX=/usr/local",
 ]
 CT2_VERSION = "v4.7.1"
 
+# Pre-built CUDA wheel for Jetson (JetPack 6, CUDA 12.6)
+CT2_JETSON_INDEX = "https://pypi.jetson-ai-lab.dev/jp6/cu126"
 
-def ctranslate2_has_cuda() -> bool:
-    """Return True if the installed CTranslate2 was built with CUDA support."""
+
+def ctranslate2_has_cuda(venv_dir: Optional[Path] = None) -> bool:
+    """Return True if the installed CTranslate2 was built with CUDA support.
+
+    Runs a subprocess so the check is never confused by module-import caching
+    or a missing LD_LIBRARY_PATH in the parent process.
+    """
+    import os
+    python = str(venv_dir / "bin/python3") if venv_dir else sys.executable
+
+    # Build LD_LIBRARY_PATH: include the ctranslate2 package dir (where the
+    # .so is bundled when installed from source) and ~/.local/lib.
+    ct2_pkg = Path(python).parent.parent / "lib/python3.10/site-packages/ctranslate2"
+    ld_paths = []
+    if ct2_pkg.exists():
+        ld_paths.append(str(ct2_pkg))
+    local_lib = Path.home() / ".local/lib"
+    if local_lib.exists():
+        ld_paths.append(str(local_lib))
+    env = os.environ.copy()
+    if ld_paths:
+        existing = env.get("LD_LIBRARY_PATH", "")
+        env["LD_LIBRARY_PATH"] = ":".join(ld_paths + ([existing] if existing else []))
+
+    r = subprocess.run(
+        [python, "-c",
+         "import ctranslate2; print(ctranslate2.get_cuda_device_count())"],
+        capture_output=True, text=True, env=env,
+    )
     try:
-        import ctranslate2
-        return ctranslate2.get_cuda_device_count() > 0
-    except Exception:
+        return int(r.stdout.strip()) > 0
+    except ValueError:
         return False
+
+
+def install_ctranslate2_cuda(venv_dir: Path) -> bool:
+    """Install CTranslate2 with CUDA support.
+
+    Strategy:
+      1. Try the pre-built wheel from jetson-ai-lab.dev (fast, no build required).
+      2. Fall back to building from source (~20 min) and installing to /usr/local.
+
+    Returns True if CTranslate2 ends up with CUDA support after this call.
+    """
+    pip = venv_dir / "bin/pip"
+
+    # ── Attempt 1: pre-built wheel ─────────────────────────────
+    print("  Trying pre-built wheel from jetson-ai-lab.dev...", flush=True)
+    rc = subprocess.run([
+        str(pip), "install", "ctranslate2",
+        "--extra-index-url", CT2_JETSON_INDEX,
+    ]).returncode
+    if rc == 0 and ctranslate2_has_cuda(venv_dir):
+        return True
+
+    # ── Attempt 2: build from source ──────────────────────────
+    print("  Pre-built wheel unavailable — falling back to source build.", flush=True)
+    return _build_ctranslate2_from_source(venv_dir)
 
 
 def clone_ctranslate2() -> bool:
@@ -272,15 +326,20 @@ def clone_ctranslate2() -> bool:
     return rc == 0
 
 
-def build_ctranslate2(venv_dir: Path) -> bool:
+def _build_ctranslate2_from_source(venv_dir: Path) -> bool:
+    """Build CTranslate2 v4.7.1 from source with CUDA, install to /usr/local."""
     import os
     env = os.environ.copy()
     env["PATH"] = "/usr/local/cuda/bin:" + env.get("PATH", "")
     env["CUDA_HOME"] = "/usr/local/cuda"
 
+    if not clone_ctranslate2():
+        return False
+
     build_dir = CT2_DIR / "build"
     build_dir.mkdir(exist_ok=True)
 
+    # Configure
     rc = subprocess.run(
         ["cmake", ".."] + CT2_CMAKE_FLAGS,
         cwd=build_dir, env=env,
@@ -288,6 +347,7 @@ def build_ctranslate2(venv_dir: Path) -> bool:
     if rc != 0:
         return False
 
+    # Build
     nproc = subprocess.run(["nproc"], capture_output=True, text=True).stdout.strip() or "4"
     rc = subprocess.run(
         ["cmake", "--build", ".", "--config", "Release", "-j", nproc],
@@ -296,13 +356,24 @@ def build_ctranslate2(venv_dir: Path) -> bool:
     if rc != 0:
         return False
 
-    # Install Python bindings into the venv
+    # Install C++ library to /usr/local so the dynamic linker can find it
+    rc = subprocess.run(
+        ["sudo", "cmake", "--install", "."],
+        cwd=build_dir, env=env,
+    ).returncode
+    if rc != 0:
+        return False
+
+    # Refresh the linker cache so libctranslate2.so.4 is found at runtime
+    subprocess.run(["sudo", "ldconfig"])
+
+    # Install Python bindings into the venv (bundles libctranslate2.so into the package)
     pip = venv_dir / "bin/pip"
     rc = subprocess.run(
         [str(pip), "install", "--force-reinstall", str(CT2_DIR / "python")],
         env=env,
     ).returncode
-    return rc == 0
+    return rc == 0 and ctranslate2_has_cuda(venv_dir)
 
 
 # ── Whisper model download ─────────────────────────────────────────
