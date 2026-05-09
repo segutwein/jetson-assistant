@@ -164,18 +164,20 @@ def check_hf_login() -> bool:
 
 
 def hf_login() -> bool:
-    """Run `huggingface-cli login` interactively. Return True on success."""
-    hf_cli = shutil.which("huggingface-cli")
-    if not hf_cli:
+    """Run HuggingFace login interactively. Return True on success."""
+    # New CLI is `hf auth login`; older installs used `huggingface-cli login`
+    hf_new = shutil.which("hf")
+    hf_old = shutil.which("huggingface-cli")
+    if hf_new:
+        rc = subprocess.run([hf_new, "auth", "login"]).returncode
+    elif hf_old:
+        rc = subprocess.run([hf_old, "login"]).returncode
+    else:
+        # Fall back to Python module login
         rc = subprocess.run(
-            [sys.executable, "-m", "pip", "install", "huggingface_hub"],
+            [sys.executable, "-c",
+             "from huggingface_hub import login; login()"]
         ).returncode
-        if rc != 0:
-            return False
-        hf_cli = shutil.which("huggingface-cli")
-    if not hf_cli:
-        return False
-    rc = subprocess.run([hf_cli, "login"]).returncode
     return rc == 0
 
 
