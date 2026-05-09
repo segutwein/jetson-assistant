@@ -87,7 +87,7 @@ def run_benchmark(cfg, start_server_fn, stop_server_fn,
 
     transcript = stt_result.get("text", "").strip()
     match = transcript.lower().strip(".,!?") == BENCH_TTS_TEXT.lower().strip(".,!?")
-    match_tag = "[green]exact match[/green]" if match else "[yellow]partial[/yellow]"
+    match_tag = "[green]exact match[/green]" if match else "[yellow]mismatch[/yellow]"
     console.print(
         f"  [green]✓[/green] {timings['stt']:.2f}s  {match_tag}\n"
         f"  [dim]\"{transcript}\"[/dim]"

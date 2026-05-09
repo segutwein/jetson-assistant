@@ -44,18 +44,6 @@ def check_cuda() -> Optional[str]:
     return None
 
 
-def check_cuda_libs() -> Optional[str]:
-    """Check for CUDA libraries even if nvcc is missing (runtime-only install)."""
-    candidates = [
-        "/usr/local/cuda/lib64/libcudart.so",
-        "/usr/local/cuda/targets/aarch64-linux/lib/libcudart.so",
-    ]
-    for c in candidates:
-        p = Path(c)
-        if p.exists() or list(p.parent.glob("libcudart.so*") if p.parent.exists() else []):
-            return str(p.parent)
-    return None
-
 
 # required: build fails without these
 # optional: warning only, build may still succeed
@@ -383,9 +371,12 @@ def whisper_model_cached(model_name: str) -> bool:
     try:
         from huggingface_hub import try_to_load_from_cache
         repo_id = f"Systran/faster-whisper-{model_name}"
-        # Check for the config file as a proxy for the full model being present
+        # try_to_load_from_cache returns a path string when found,
+        # None when the repo is unknown, or the _CACHED_NO_EXIST sentinel
+        # (not a string) when the file was negatively cached. isinstance(str)
+        # is the correct check per the huggingface_hub docs.
         result = try_to_load_from_cache(repo_id, "config.json")
-        return result is not None and result != "CACHED_BUT_MISSING"
+        return isinstance(result, str)
     except Exception:
         return False
 

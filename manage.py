@@ -84,11 +84,12 @@ def setup(
             missing_optional.append(name)
 
     if missing_optional:
+        missing_str = ", ".join(missing_optional)
         console.print(
-            f"\n  [yellow]Note:[/yellow] nvcc not found. "
-            "If the build fails, install the CUDA compiler toolkit:\n"
+            f"\n  [yellow]Note:[/yellow] optional tool(s) not found: {missing_str}.\n"
+            "  cmake may still find CUDA automatically. If the llama.cpp build fails:\n"
             "  [dim]sudo apt-get install cuda-toolkit-12-6[/dim]\n"
-            "  or add it to PATH: [dim]export PATH=/usr/local/cuda/bin:$PATH[/dim]"
+            "  or add to PATH: [dim]export PATH=/usr/local/cuda/bin:$PATH[/dim]"
         )
 
     if missing_required:
@@ -147,9 +148,7 @@ def setup(
             console.print(f"  [green]✓ Models found in {MODELS_DIR}:[/green]")
             for m in existing:
                 console.print(f"    [dim]{m.name}  ({m.stat().st_size/1e9:.1f} GB)[/dim]")
-            if not Confirm.ask("  Download an additional model?", default=False):
-                pass
-            else:
+            if Confirm.ask("  Download an additional model?", default=False):
                 _model_download_dialog()
         else:
             console.print(f"  No models found in {MODELS_DIR}.")
@@ -228,7 +227,7 @@ def setup(
         else:
             console.print("  [dim]Skipped — will download on first use.[/dim]")
 
-    # ── Step 6: Whisper STT model ──────────────────────────────
+    # ── Step 7: Whisper STT model ──────────────────────────────
     console.print("\n[bold]Step 7/7 — STT model (Whisper)[/bold]")
 
     from app.config import Config
@@ -413,7 +412,9 @@ def start(
     console.print("\n[bold green]Starting voice chat...[/bold green]\n")
     voice_chat = Path(__file__).parent / "run_voice_chat.py"
     try:
-        subprocess.run([sys.executable, str(voice_chat)])
+        result = subprocess.run([sys.executable, str(voice_chat)])
+        if result.returncode not in (0, -2):   # -2 = SIGINT (Ctrl+C), expected
+            console.print(f"\n[yellow]⚠ Voice chat exited with code {result.returncode}[/yellow]")
     except KeyboardInterrupt:
         pass
 

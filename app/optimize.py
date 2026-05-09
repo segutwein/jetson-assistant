@@ -49,7 +49,8 @@ def _service_exists(name: str) -> bool:
 
 def _service_enabled(name: str) -> bool:
     rc, out = _run(["systemctl", "is-enabled", name])
-    return rc == 0 and out.strip() in ("enabled", "static")
+    # "static" units have no [Install] section and cannot be disabled — exclude them
+    return rc == 0 and out.strip() == "enabled"
 
 
 def _service_active(name: str) -> bool:
@@ -130,6 +131,7 @@ def build_plan() -> dict:
 
 def apply_optimizations(plan: dict) -> dict:
     """Apply the plan and return saved state for restore."""
+    STATE_DIR.mkdir(parents=True, exist_ok=True)   # ensure dir exists before --store writes here
     state = {"applied": [], "target_before": _get_default_target(), "services_disabled": [], "zram_disabled": []}
 
     if plan["target"]["change"]:
@@ -148,10 +150,11 @@ def apply_optimizations(plan: dict) -> dict:
             state["zram_disabled"].append(svc)
 
     if plan["jetson_clocks"]["available"]:
-        _run(["jetson_clocks", "--store", str(JETSON_CLOCKS_STORE)], sudo=True)
-        rc, _ = _run(["jetson_clocks"], sudo=True)
-        if rc == 0:
-            state["applied"].append("jetson_clocks")
+        rc_store, _ = _run(["jetson_clocks", "--store", str(JETSON_CLOCKS_STORE)], sudo=True)
+        if rc_store == 0:
+            rc, _ = _run(["jetson_clocks"], sudo=True)
+            if rc == 0:
+                state["applied"].append("jetson_clocks")
 
     save_state(state)
     return state

@@ -74,6 +74,8 @@ def _download_kokoro_models_if_missing() -> bool:
             print(f"  Saved {path}")
         except Exception as e:
             print(f"  Download failed: {e}")
+            if path.exists():
+                path.unlink()   # remove partial file so next run retries
             return False
     return True
 
@@ -127,8 +129,10 @@ class KokoroTTS:
             "GPU device discovery failed",
         ]
 
+        stderr_pipe = self._proc.stderr
+
         def _stderr_filter():
-            for line in self._proc.stderr:
+            for line in stderr_pipe:
                 if not any(s in line for s in _SUPPRESS):
                     sys.stderr.write(line)
 

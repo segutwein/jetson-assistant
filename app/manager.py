@@ -12,8 +12,9 @@ from typing import Optional
 import httpx
 
 STATE_DIR = Path.home() / ".jetson-assistant"
-LLAMA_PID_FILE = STATE_DIR / "llama-server.pid"
-LLAMA_LOG_FILE = STATE_DIR / "llama-server.log"
+LLAMA_PID_FILE  = STATE_DIR / "llama-server.pid"
+LLAMA_PORT_FILE = STATE_DIR / "llama-server.port"
+LLAMA_LOG_FILE  = STATE_DIR / "llama-server.log"
 
 _LLAMA_SEARCH_PATHS = [
     Path.home() / "llama.cpp/build/bin/llama-server",
@@ -44,6 +45,16 @@ def find_gguf_models() -> list[Path]:
     return [m for m in models if not (m in seen or seen.add(m))]
 
 
+def _llama_port() -> int:
+    """Return the port llama-server was last started on (default 8080)."""
+    if LLAMA_PORT_FILE.exists():
+        try:
+            return int(LLAMA_PORT_FILE.read_text().strip())
+        except Exception:
+            pass
+    return 8080
+
+
 def _save_pid(pid_file: Path, pid: int):
     STATE_DIR.mkdir(parents=True, exist_ok=True)
     pid_file.write_text(str(pid))
@@ -62,8 +73,10 @@ def is_process_running(pid: int) -> bool:
     try:
         os.kill(pid, 0)
         return True
-    except (ProcessLookupError, PermissionError):
+    except ProcessLookupError:
         return False
+    except PermissionError:
+        return True  # process exists but is owned by another user
 
 
 def is_llama_server_running() -> bool:
@@ -72,17 +85,18 @@ def is_llama_server_running() -> bool:
         return True
     # also check via HTTP in case PID file is stale
     try:
-        r = httpx.get("http://127.0.0.1:8080/v1/models", timeout=1.0)
+        r = httpx.get(f"http://127.0.0.1:{_llama_port()}/v1/models", timeout=1.0)
         return r.status_code == 200
     except Exception:
         return False
 
 
 def wait_for_llama_server(timeout: int = 120) -> bool:
+    port = _llama_port()
     deadline = time.time() + timeout
     while time.time() < deadline:
         try:
-            r = httpx.get("http://127.0.0.1:8080/v1/models", timeout=2.0)
+            r = httpx.get(f"http://127.0.0.1:{port}/v1/models", timeout=2.0)
             if r.status_code == 200:
                 return True
         except Exception:
@@ -110,6 +124,7 @@ def start_llama_server(model_path: Path, port: int = 8080, ctx: int = 4096) -> O
             start_new_session=True,
         )
     _save_pid(LLAMA_PID_FILE, proc.pid)
+    LLAMA_PORT_FILE.write_text(str(port))
     return proc.pid
 
 
@@ -128,11 +143,13 @@ def stop_llama_server():
                 pass
     if LLAMA_PID_FILE.exists():
         LLAMA_PID_FILE.unlink()
+    if LLAMA_PORT_FILE.exists():
+        LLAMA_PORT_FILE.unlink()
 
 
 def get_llama_model_name() -> Optional[str]:
     try:
-        r = httpx.get("http://127.0.0.1:8080/v1/models", timeout=2.0)
+        r = httpx.get(f"http://127.0.0.1:{_llama_port()}/v1/models", timeout=2.0)
         models = r.json().get("data", [])
         return models[0].get("id") if models else None
     except Exception:

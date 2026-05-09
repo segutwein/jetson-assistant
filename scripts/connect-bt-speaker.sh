@@ -17,8 +17,10 @@ if [ -z "$MAC" ]; then
     read -rp "Enter MAC address: " MAC
 fi
 
-echo "[1/3] Ensuring pulseaudio-module-bluetooth is installed..."
-sudo apt-get install -y pulseaudio-module-bluetooth
+echo "[1/4] Ensuring pulseaudio-module-bluetooth is installed..."
+if ! dpkg -s pulseaudio-module-bluetooth &>/dev/null; then
+    sudo apt-get install -y pulseaudio-module-bluetooth
+fi
 
 echo "[2/4] Restarting PulseAudio (ensures Bluetooth module loads after bluetoothd)..."
 killall -9 pulseaudio 2>/dev/null || true
