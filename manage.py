@@ -67,7 +67,7 @@ def setup(
     project_dir = Path(__file__).parent
 
     # ── Step 1: Prerequisites ──────────────────────────────────
-    console.print("\n[bold]Step 1/4 — Checking prerequisites[/bold]")
+    console.print("\n[bold]Step 1/5 — Checking prerequisites[/bold]")
     prereqs = check_prerequisites()
     missing_required = []
     missing_optional = []
@@ -99,7 +99,7 @@ def setup(
         raise typer.Exit(1)
 
     # ── Step 2: Build llama.cpp ────────────────────────────────
-    console.print("\n[bold]Step 2/4 — llama.cpp[/bold]")
+    console.print("\n[bold]Step 2/5 — llama.cpp[/bold]")
 
     if skip_llama:
         console.print("  [dim]Skipped (--skip-llama)[/dim]")
@@ -130,7 +130,7 @@ def setup(
             console.print(f"\n  [green]✓ Built:[/green] [dim]{llama_server_path()}[/dim]")
 
     # ── Step 3: Download model ─────────────────────────────────
-    console.print("\n[bold]Step 3/4 — Model[/bold]")
+    console.print("\n[bold]Step 3/5 — Model[/bold]")
     console.print(
         "  [dim]A free HuggingFace account is required to download models.\n"
         "  If not logged in yet: [bold]hf auth login[/bold]  "
@@ -154,7 +154,7 @@ def setup(
             _model_download_dialog()
 
     # ── Step 4: Python venv ────────────────────────────────────
-    console.print("\n[bold]Step 4/4 — Python environment[/bold]")
+    console.print("\n[bold]Step 4/5 — Python environment[/bold]")
 
     if skip_venv:
         console.print("  [dim]Skipped (--skip-venv)[/dim]")
@@ -174,6 +174,31 @@ def setup(
                     "  [dim]sudo apt install python3.10-venv[/dim]\n"
                     "  Then re-run: [dim]./jetson-assistant setup --skip-llama --skip-model[/dim]"
                 )
+
+    # ── Step 5: TTS voice models ───────────────────────────────
+    console.print("\n[bold]Step 5/5 — TTS voice models[/bold]")
+
+    from app.tts import _download_kokoro_models_if_missing, VOICES_DIR
+    model_file = VOICES_DIR / "kokoro-v1.0.onnx"
+    voices_file = VOICES_DIR / "voices-v1.0.bin"
+
+    if model_file.exists() and voices_file.exists():
+        console.print(f"  [green]✓ Kokoro models already downloaded[/green]  [dim]{VOICES_DIR}[/dim]")
+    else:
+        missing = []
+        if not model_file.exists():
+            missing.append("kokoro-v1.0.onnx (~311 MB)")
+        if not voices_file.exists():
+            missing.append("voices-v1.0.bin (~30 MB)")
+        console.print(f"  Missing: [dim]{', '.join(missing)}[/dim]")
+        if Confirm.ask("  Download Kokoro TTS models now?", default=True):
+            console.print("  Downloading...")
+            if _download_kokoro_models_if_missing():
+                console.print("  [green]✓ Kokoro models ready[/green]")
+            else:
+                console.print("  [yellow]⚠ Download failed — will retry on first use[/yellow]")
+        else:
+            console.print("  [dim]Skipped — will download on first use.[/dim]")
 
     # ── Done ───────────────────────────────────────────────────
     console.print()
