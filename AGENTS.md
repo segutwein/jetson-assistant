@@ -59,3 +59,4 @@ in `~/models/`. The setup wizard handles both.
 - State files live in `~/.jetson-assistant/` (PID files, optimization state, logs).
 - Model files live in `~/models/` (gitignored). TTS voice files live in `voices/`.
 - HuggingFace login is required to download models: `hf auth login`.
+- **Comments**: keep them short and to the point — explain *why*, not *what*.

@@ -144,6 +144,11 @@ jetson-assistant/
 - [ ] Multi-language support
 - [ ] Auto-start llama-server as systemd service
 
+## Further Reading
+
+- [AI models that run on Jetson Orin Nano Super 8GB — a practical guide](https://forums.developer.nvidia.com/t/ai-models-that-run-on-jetson-orin-nano-super-8gb-a-practical-guide/365412) — model selection, benchmarks, and what fits in 8 GB
+- [Maximizing Memory Efficiency on NVIDIA Jetson](https://developer.nvidia.com/blog/maximizing-memory-efficiency-to-run-bigger-models-on-nvidia-jetson/) — the techniques behind `./jetson-assistant optimize`
+
 ## Troubleshooting
 
 See [SETUP.md](SETUP.md#troubleshooting) for common issues and fixes.

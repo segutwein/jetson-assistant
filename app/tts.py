@@ -115,20 +115,11 @@ class KokoroTTS:
             print(f"TTS worker spawn failed: {e}")
             return False
 
-        # Forward worker stderr to our stderr, suppressing a known harmless ORT
-        # warning that fires on every Jetson startup:
-        #
-        #   [W:onnxruntime:Default, device_discovery.cc:164
-        #    DiscoverDevicesForPlatform] GPU device discovery failed:
-        #    Failed to open file: "/sys/class/drm/card0/device/vendor"
-        #
-        # ORT tries to enumerate GPUs via the Linux DRM subsystem by reading
-        # the PCI vendor-ID file.  On Jetson the GPU is an integrated SoC
-        # device driven by nvidia's own nvgpu kernel driver, not a PCIe card,
-        # so /sys/class/drm/card0/device/vendor does not exist.  ORT falls
-        # back to CPUExecutionProvider — which is correct: the standard ORT
-        # PyPI wheel has no ARM/Tegra CUDA provider, and Kokoro on CPU
-        # synthesises a sentence in ~3 s, fast enough for TTS.
+        # Forward worker stderr, suppressing a harmless ORT startup warning:
+        # ORT probes /sys/class/drm/card0/device/vendor (PCI GPU enumeration);
+        # on Jetson that file doesn't exist (SoC GPU, nvgpu driver, not PCIe),
+        # so ORT logs "GPU device discovery failed" and falls back to CPU —
+        # which is correct, Kokoro on CPU is fast enough for TTS.
         import threading
         _SUPPRESS = [
             "DiscoverDevicesForPlatform",
