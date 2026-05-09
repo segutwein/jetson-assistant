@@ -183,19 +183,20 @@ def download_model(repo: str, filename: str) -> Optional[Path]:
     cmd = _hf_cmd()
     if cmd:
         name = Path(cmd).name
-        # `hf download repo --include file --local-dir dir`
-        # `huggingface-cli download repo file --local-dir dir`
         if name == "hf":
             args = [cmd, "download", repo, "--include", filename, "--local-dir", str(MODELS_DIR)]
         else:
             args = [cmd, "download", repo, filename, "--local-dir", str(MODELS_DIR)]
-        r = subprocess.run(args, capture_output=True, text=True)
+        # Let stdout/stderr through so the hf CLI progress bar is visible.
+        # Capture only stderr separately to detect auth errors on failure.
+        r = subprocess.run(args, stderr=subprocess.PIPE, text=True)
         if r.returncode == 0 and dest.exists():
             return dest
-        out = r.stdout + r.stderr
-        if "401" in out or "403" in out or "not logged in" in out.lower() or "token" in out.lower():
+        err = r.stderr or ""
+        if "401" in err or "403" in err or "not logged in" in err.lower() or "token" in err.lower():
             raise DownloadAuthError(repo)
-        print(out.strip())
+        if err.strip():
+            print(err.strip())
         return None
 
     # Python fallback via huggingface_hub
