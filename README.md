@@ -27,6 +27,8 @@ Speak into a microphone and the assistant responds using a local LLM. Speech is 
 
 llama.cpp is compiled directly on the Jetson — no Docker, no Python wrapper overhead. This keeps the memory footprint as small as possible on the shared 8 GB unified memory.
 
+**Default model:** [Gemma 4 E4B Q4_K_M](https://huggingface.co/unsloth/gemma-4-E4B-it-GGUF) (~4.6 GB) — Google's Gemma 4 Efficient 4B, quantized by unsloth. Any GGUF model placed in `~/models/` is picked up automatically by `./jetson-assistant start`.
+
 ## Prerequisites
 
 - **NVIDIA Jetson Orin Nano** (8GB) with JetPack 6.x, Python 3.10
@@ -42,11 +44,13 @@ See **[SETUP.md](SETUP.md)** for the full installation guide — dependencies, b
 ### Management CLI (recommended)
 
 ```bash
-./jetson-assistant start     # model picker → llama-server → voice chat
-./jetson-assistant stop      # stop everything
-./jetson-assistant status    # show what's running + memory usage
-./jetson-assistant optimize  # apply memory optimizations (reversible)
-./jetson-assistant restore   # undo optimizations
+./jetson-assistant setup            # first-time setup: build llama.cpp, download model, create venv
+./jetson-assistant start            # model picker → llama-server → voice chat
+./jetson-assistant stop             # stop everything
+./jetson-assistant status           # show what's running + memory usage
+./jetson-assistant optimize         # apply memory optimizations (reversible)
+./jetson-assistant optimize --restore   # undo optimizations
+./jetson-assistant optimize --status    # show what is applied
 ```
 
 Add the project directory to `PATH` to use `jetson-assistant` from anywhere:
