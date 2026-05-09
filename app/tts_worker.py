@@ -25,7 +25,6 @@ import sys
 import json
 import base64
 import argparse
-import os
 from pathlib import Path
 
 
@@ -58,14 +57,9 @@ def main():
         sys.exit(1)
 
     try:
-        import onnxruntime as ort
-
-        available = ort.get_available_providers()
-        if "CUDAExecutionProvider" in available:
-            os.environ["ONNX_PROVIDER"] = "CUDAExecutionProvider"
-        elif "TensorrtExecutionProvider" in available:
-            os.environ["ONNX_PROVIDER"] = "TensorrtExecutionProvider"
-
+        # On Jetson the standard ORT wheel only exposes CPUExecutionProvider
+        # (CUDAExecutionProvider is not built for ARM/Tegra in the PyPI wheel).
+        # Kokoro on CPU synthesises a sentence in ~3 s — fast enough for TTS.
         from kokoro_onnx import Kokoro
         kokoro = Kokoro(str(model_path), str(voices_path))
         provider = kokoro.sess.get_providers()[0]
