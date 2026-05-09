@@ -22,10 +22,15 @@
 # Log messages go to stderr so they appear in the parent's terminal.
 
 import sys
+import signal
 import json
 import base64
 import argparse
 from pathlib import Path
+
+# Ignore SIGINT — the parent process owns Ctrl+C. We shut down only when
+# the parent sends {"cmd": "shutdown"} or closes stdin (EOF).
+signal.signal(signal.SIGINT, signal.SIG_IGN)
 
 
 import numpy as np
@@ -97,7 +102,7 @@ def main():
                 samples, sample_rate = kokoro.create(
                     text, voice=voice, speed=speed, lang=lang,
                 )
-                audio_int16 = (samples * 32767).astype(np.int16)
+                audio_int16 = np.clip(samples * 32767, -32768, 32767).astype(np.int16)
                 audio_b64 = base64.b64encode(audio_int16.tobytes()).decode("ascii")
                 _respond({"audio_b64": audio_b64, "sample_rate": sample_rate})
             except Exception as e:

@@ -138,6 +138,13 @@ class KokoroTTS:
 
         threading.Thread(target=_stderr_filter, daemon=True).start()
 
+        import select
+        ready = select.select([self._proc.stdout], [], [], 30.0)[0]
+        if not ready:
+            print("TTS worker startup timed out")
+            self._proc.kill()
+            self._proc.wait()
+            return False
         line = self._proc.stdout.readline()
         if not line:
             print("TTS worker exited before signalling ready")
@@ -212,6 +219,7 @@ class KokoroTTS:
                 self._proc.wait(timeout=5)
             except Exception:
                 self._proc.kill()
+                self._proc.wait()
             self._proc = None
 
 

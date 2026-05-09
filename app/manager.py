@@ -118,11 +118,15 @@ def start_llama_server(model_path: Path, port: int = 8080, ctx: int = 4096) -> O
         "-ngl", "99",
         "-c", str(ctx),
     ]
-    with open(LLAMA_LOG_FILE, "w") as log:
-        proc = subprocess.Popen(
-            cmd, stdout=log, stderr=log,
-            start_new_session=True,
-        )
+    try:
+        with open(LLAMA_LOG_FILE, "w") as log:
+            proc = subprocess.Popen(
+                cmd, stdout=log, stderr=log,
+                start_new_session=True,
+            )
+    except Exception as e:
+        print(f"llama-server spawn failed: {e}")
+        return None
     _save_pid(LLAMA_PID_FILE, proc.pid)
     LLAMA_PORT_FILE.write_text(str(port))
     return proc.pid
@@ -139,7 +143,7 @@ def stop_llama_server():
         else:
             try:
                 os.kill(pid, signal.SIGKILL)
-            except ProcessLookupError:
+            except (ProcessLookupError, PermissionError):
                 pass
     if LLAMA_PID_FILE.exists():
         LLAMA_PID_FILE.unlink()

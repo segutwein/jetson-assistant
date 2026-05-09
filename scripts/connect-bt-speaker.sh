@@ -17,6 +17,11 @@ if [ -z "$MAC" ]; then
     read -rp "Enter MAC address: " MAC
 fi
 
+if ! [[ "$MAC" =~ ^([0-9A-Fa-f]{2}:){5}[0-9A-Fa-f]{2}$ ]]; then
+    echo "Error: invalid MAC address: $MAC" >&2
+    exit 1
+fi
+
 echo "[1/4] Ensuring pulseaudio-module-bluetooth is installed..."
 if ! dpkg -s pulseaudio-module-bluetooth &>/dev/null; then
     sudo apt-get install -y pulseaudio-module-bluetooth

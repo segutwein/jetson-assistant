@@ -198,6 +198,7 @@ def test_mic(cfg):
     with tempfile.NamedTemporaryFile(suffix=".raw", delete=False) as tmp:
         tmp_path = tmp.name
 
+    raw_audio = b""
     max_rms = 0.001
     try:
         proc = subprocess.Popen(rec_cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
@@ -213,14 +214,21 @@ def test_mic(cfg):
             rms = float(np.sqrt(np.mean(pcm ** 2)))
             max_rms = max(max_rms, rms)
             bar_len = min(int(rms / 0.05 * 30), 30)
-            bar = "█" * bar_len + "░" * (30 - bar_len)
             color = "green" if rms > 0.01 else "yellow" if rms > 0.002 else "red"
-            sys.stdout.write(f"  [{color}]{bar}[/{color}] {rms:.4f}\r")
+            # Use ANSI codes directly — sys.stdout.write bypasses Rich's markup renderer
+            ansi = {"green": "\033[32m", "yellow": "\033[33m", "red": "\033[31m"}
+            reset = "\033[0m"
+            bar = f"{ansi[color]}{'█' * bar_len}{'░' * (30 - bar_len)}{reset}"
+            sys.stdout.write(f"  {bar} {rms:.4f}\r")
             sys.stdout.flush()
 
         proc.terminate()
-        proc.wait(timeout=2)
-        sys.stdout.write(" " * 50 + "\r")
+        try:
+            proc.wait(timeout=2)
+        except subprocess.TimeoutExpired:
+            proc.kill()
+            proc.wait()
+        sys.stdout.write(" " * 55 + "\r")
 
         if not all_chunks:
             err = proc.stderr.read().decode(errors="replace").strip()
@@ -228,12 +236,15 @@ def test_mic(cfg):
             return
 
         raw_audio = b"".join(all_chunks)
-        with open(tmp_path, "wb") as f:
-            f.write(raw_audio)
 
     except Exception as e:
         console.print(f"  [red]✗ Recording failed: {e}[/red]")
         return
+    finally:
+        try:
+            os.unlink(tmp_path)
+        except OSError:
+            pass
 
     peak = max_rms
     if peak < 0.002:
@@ -244,11 +255,11 @@ def test_mic(cfg):
         console.print(f"  [green]✓ Signal looks good (peak RMS {peak:.4f})[/green]")
 
     # ── Play back ─────────────────────────────────────────────────
+    if not raw_audio:
+        return
     console.print("  Playing back recording...")
-    play_cmd = ["aplay", "-f", "S16_LE", "-r", str(SAMPLE_RATE), "-c", "1",
-                "-t", "raw", "-q", tmp_path]
     try:
-        # Prefer paplay to BT/PA sink if available
+        import io, wave as _wave
         r = subprocess.run(["pactl", "list", "short", "sinks"],
                            capture_output=True, text=True)
         default_sink = next(
@@ -256,29 +267,36 @@ def test_mic(cfg):
             None
         )
         if default_sink:
-            import wave, struct, io
-            # Build a WAV in memory for paplay
             wav_buf = io.BytesIO()
-            with wave.open(wav_buf, "wb") as wf:
+            with _wave.open(wav_buf, "wb") as wf:
                 wf.setnchannels(1)
                 wf.setsampwidth(2)
                 wf.setframerate(SAMPLE_RATE)
                 wf.writeframes(raw_audio)
-            wav_bytes = wav_buf.getvalue()
             p = subprocess.Popen(
                 ["paplay", f"--device={default_sink}"],
                 stdin=subprocess.PIPE, stderr=subprocess.DEVNULL,
             )
-            p.stdin.write(wav_bytes)
-            p.stdin.close()
+            try:
+                p.stdin.write(wav_buf.getvalue())
+            finally:
+                p.stdin.close()
             p.wait(timeout=10)
         else:
-            subprocess.run(play_cmd, timeout=10)
+            with tempfile.NamedTemporaryFile(suffix=".raw", delete=False) as tf:
+                tf.write(raw_audio)
+                play_path = tf.name
+            try:
+                subprocess.run(
+                    ["aplay", "-f", "S16_LE", "-r", str(SAMPLE_RATE),
+                     "-c", "1", "-t", "raw", "-q", play_path],
+                    timeout=10,
+                )
+            finally:
+                os.unlink(play_path)
         console.print("  [green]✓ Playback complete[/green]")
     except Exception as e:
         console.print(f"  [yellow]⚠ Playback failed: {e}[/yellow]")
-
-    os.unlink(tmp_path)
 
 
 def test_vad(cfg):
