@@ -923,5 +923,29 @@ def _test_vad(cfg):
     console.print("\n  [green]✓ VAD test complete[/green]")
 
 
+# ── benchmark ─────────────────────────────────────────────────────
+
+@app.command()
+def benchmark():
+    """Benchmark TTS → STT → LLM with fixed inputs. No microphone required."""
+    from app.config import Config
+    from app.benchmark import run_benchmark
+
+    console.print(Panel.fit(
+        "[bold cyan]Pipeline Benchmark[/bold cyan]\n"
+        "[dim]Fixed inputs — results are comparable across runs[/dim]",
+        border_style="cyan",
+    ))
+
+    run_benchmark(
+        cfg=Config.load(),
+        start_server_fn=start_llama_server,
+        stop_server_fn=stop_llama_server,
+        is_running_fn=is_llama_server_running,
+        wait_fn=wait_for_llama_server,
+        find_models_fn=find_gguf_models,
+    )
+
+
 if __name__ == "__main__":
     app()
