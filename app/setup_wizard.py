@@ -1,6 +1,3 @@
-# SPDX-FileCopyrightText: Copyright (c) 2023-2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
-# SPDX-License-Identifier: Apache-2.0
-
 """First-time setup wizard — build llama.cpp and download a model."""
 
 import shutil
