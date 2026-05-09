@@ -732,6 +732,7 @@ def _test_tts(cfg):
     console.print("\n[bold cyan]── TTS test ──[/bold cyan]")
     from app.tts import create_tts
     import numpy as np
+    import os
 
     tts = create_tts(
         voice=cfg.tts.voice,
@@ -739,6 +740,8 @@ def _test_tts(cfg):
         lang=cfg.tts.lang,
     )
     console.print("  Loading Kokoro TTS...", end=" ")
+    # Suppress the harmless ONNX GPU discovery warning on Jetson
+    os.environ.setdefault("ORT_LOGGING_LEVEL", "3")
     if not tts.load():
         console.print("[red]failed[/red]")
         return
