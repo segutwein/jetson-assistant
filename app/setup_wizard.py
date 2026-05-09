@@ -236,6 +236,34 @@ def download_model(repo: str, filename: str) -> Optional[Path]:
         return None
 
 
+# ── Whisper model download ─────────────────────────────────────────
+
+def whisper_model_cached(model_name: str) -> bool:
+    """Return True if the faster-whisper model is already in the HF cache."""
+    try:
+        from huggingface_hub import try_to_load_from_cache
+        repo_id = f"Systran/faster-whisper-{model_name}"
+        # Check for the config file as a proxy for the full model being present
+        result = try_to_load_from_cache(repo_id, "config.json")
+        return result is not None and result != "CACHED_BUT_MISSING"
+    except Exception:
+        return False
+
+
+def download_whisper_model(model_name: str) -> bool:
+    """Pre-download the faster-whisper model into the HF cache."""
+    if not _ensure_huggingface_hub():
+        return False
+    try:
+        from huggingface_hub import snapshot_download
+        repo_id = f"Systran/faster-whisper-{model_name}"
+        snapshot_download(repo_id=repo_id)
+        return True
+    except Exception as e:
+        print(f"Whisper model download failed: {e}")
+        return False
+
+
 # ── venv ───────────────────────────────────────────────────────────
 
 def setup_venv(project_dir: Path) -> bool:

@@ -37,6 +37,7 @@ from app.monitor import get_system_stats, format_stats
 from app.setup_wizard import (
     check_prerequisites, llama_server_path, clone_llama_cpp, build_llama_cpp,
     download_model, setup_venv, check_hf_login, hf_login, DownloadAuthError,
+    whisper_model_cached, download_whisper_model,
     LLAMA_DIR, MODELS_DIR, RECOMMENDED_MODELS,
 )
 
@@ -67,7 +68,7 @@ def setup(
     project_dir = Path(__file__).parent
 
     # ── Step 1: Prerequisites ──────────────────────────────────
-    console.print("\n[bold]Step 1/5 — Checking prerequisites[/bold]")
+    console.print("\n[bold]Step 1/6 — Checking prerequisites[/bold]")
     prereqs = check_prerequisites()
     missing_required = []
     missing_optional = []
@@ -99,7 +100,7 @@ def setup(
         raise typer.Exit(1)
 
     # ── Step 2: Build llama.cpp ────────────────────────────────
-    console.print("\n[bold]Step 2/5 — llama.cpp[/bold]")
+    console.print("\n[bold]Step 2/6 — llama.cpp[/bold]")
 
     if skip_llama:
         console.print("  [dim]Skipped (--skip-llama)[/dim]")
@@ -130,7 +131,7 @@ def setup(
             console.print(f"\n  [green]✓ Built:[/green] [dim]{llama_server_path()}[/dim]")
 
     # ── Step 3: Download model ─────────────────────────────────
-    console.print("\n[bold]Step 3/5 — Model[/bold]")
+    console.print("\n[bold]Step 3/6 — Model[/bold]")
     console.print(
         "  [dim]A free HuggingFace account is required to download models.\n"
         "  If not logged in yet: [bold]hf auth login[/bold]  "
@@ -154,7 +155,7 @@ def setup(
             _model_download_dialog()
 
     # ── Step 4: Python venv ────────────────────────────────────
-    console.print("\n[bold]Step 4/5 — Python environment[/bold]")
+    console.print("\n[bold]Step 4/6 — Python environment[/bold]")
 
     if skip_venv:
         console.print("  [dim]Skipped (--skip-venv)[/dim]")
@@ -176,7 +177,7 @@ def setup(
                 )
 
     # ── Step 5: TTS voice models ───────────────────────────────
-    console.print("\n[bold]Step 5/5 — TTS voice models[/bold]")
+    console.print("\n[bold]Step 5/6 — TTS voice models[/bold]")
 
     from app.tts import _download_kokoro_models_if_missing, VOICES_DIR
     model_file = VOICES_DIR / "kokoro-v1.0.onnx"
@@ -195,6 +196,24 @@ def setup(
             console.print("  Downloading...")
             if _download_kokoro_models_if_missing():
                 console.print("  [green]✓ Kokoro models ready[/green]")
+            else:
+                console.print("  [yellow]⚠ Download failed — will retry on first use[/yellow]")
+        else:
+            console.print("  [dim]Skipped — will download on first use.[/dim]")
+
+    # ── Step 6: Whisper STT model ──────────────────────────────
+    console.print("\n[bold]Step 6/6 — STT model (Whisper)[/bold]")
+
+    from app.config import Config
+    stt_model = Config.load().stt.model
+    if whisper_model_cached(stt_model):
+        console.print(f"  [green]✓ faster-whisper/{stt_model} already cached[/green]")
+    else:
+        console.print(f"  Model: [dim]Systran/faster-whisper-{stt_model}[/dim]")
+        if Confirm.ask("  Download Whisper model now?", default=True):
+            console.print("  Downloading...")
+            if download_whisper_model(stt_model):
+                console.print(f"  [green]✓ faster-whisper/{stt_model} ready[/green]")
             else:
                 console.print("  [yellow]⚠ Download failed — will retry on first use[/yellow]")
         else:
