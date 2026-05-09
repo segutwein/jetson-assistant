@@ -658,12 +658,25 @@ def test(
 
 def _test_llm(cfg):
     console.print("\n[bold cyan]── LLM test ──[/bold cyan]")
-    if not is_llama_server_running():
-        console.print("  [red]✗ llama-server is not running.[/red]")
-        console.print("  Start it first: [dim]./jetson-assistant start[/dim]  or  "
-                      "[dim]./jetson-assistant start --keep-server[/dim]")
-        return
 
+    server_started = False
+    if not is_llama_server_running():
+        models = find_gguf_models()
+        if not models:
+            console.print("  [red]✗ No .gguf models found in ~/models.[/red]")
+            console.print("  Run [dim]./jetson-assistant setup[/dim] first.")
+            return
+        model_path = models[0]
+        console.print(f"  Starting llama-server  [dim]{model_path.name}[/dim]...")
+        pid = start_llama_server(model_path)
+        if not pid or not wait_for_llama_server(timeout=120):
+            console.print("  [red]✗ llama-server failed to start.[/red]")
+            stop_llama_server()
+            return
+        console.print("  [green]server ready[/green]")
+        server_started = True
+
+    import time
     from app.llm import LLM
     llm = LLM(
         model=cfg.llm.model,
@@ -675,13 +688,14 @@ def _test_llm(cfg):
     console.print("  Connecting...", end=" ")
     if not llm.load():
         console.print("[red]failed[/red]")
+        if server_started:
+            stop_llama_server()
         return
     console.print(f"[green]ok[/green]  model: [dim]{llm.model}[/dim]")
 
     prompt = "Say hello in exactly one short sentence."
     console.print(f"  Prompt: [dim]{prompt}[/dim]")
     console.print("  Response: ", end="")
-    import time
     t0 = time.time()
     for chunk, meta in llm.generate_stream(prompt):
         if chunk:
@@ -689,6 +703,11 @@ def _test_llm(cfg):
     elapsed = time.time() - t0
     console.print(f"\n  [green]✓[/green] [dim]{elapsed:.1f}s[/dim]")
     llm.unload()
+
+    if server_started:
+        console.print("  Stopping llama-server...", end=" ")
+        stop_llama_server()
+        console.print("[dim]done[/dim]")
 
 
 def _test_stt(cfg):
