@@ -42,8 +42,6 @@ See **[SETUP.md](SETUP.md)** for the full installation guide — dependencies, b
 
 ## Usage
 
-### Management CLI (recommended)
-
 ```bash
 ./jetson-assistant setup            # first-time setup: build llama.cpp, download model, create venv
 ./jetson-assistant start            # model picker → llama-server → voice chat
@@ -52,40 +50,17 @@ See **[SETUP.md](SETUP.md)** for the full installation guide — dependencies, b
 ./jetson-assistant optimize         # apply memory optimizations (reversible)
 ./jetson-assistant optimize --restore   # undo optimizations
 ./jetson-assistant optimize --status    # show what is applied
+./jetson-assistant test --llm       # test individual components
+./jetson-assistant test --stt
+./jetson-assistant test --tts
+./jetson-assistant test --vad
+./jetson-assistant test --all
 ```
 
 Add the project directory to `PATH` to use `jetson-assistant` from anywhere:
 ```bash
 echo 'export PATH="$HOME/workspace/jetson-assistant:$PATH"' >> ~/.bashrc
 source ~/.bashrc
-```
-
-### Manual Start
-
-**Terminal 1** — Start the LLM server:
-
-```bash
-~/llama.cpp/build/bin/llama-server \
-  -m ~/models/gemma-3-4b-it-Q4_K_M.gguf \
-  --port 8080 --host 127.0.0.1 -ngl 99 -c 4096
-```
-
-**Terminal 2** — Start the assistant:
-
-```bash
-source venv/bin/activate
-python3 run_voice_chat.py
-```
-
-Speak anytime — the assistant auto-detects speech. Press **Ctrl+C** to quit.
-
-### CLI (Text Only)
-
-```bash
-source venv/bin/activate
-python3 main.py chat                            # interactive text chat
-python3 main.py ask "What is the Jetson Orin?"  # single question
-python3 main.py info                            # system info + dependency check
 ```
 
 ## Configuration
@@ -107,20 +82,22 @@ All settings live in `config/settings.yaml`:
 ```
 jetson-assistant/
 ├── app/
-│   ├── pipeline.py      # Audio I/O, VAD, TTS streaming, mic recording
-│   ├── config.py        # Configuration dataclasses + YAML loader
-│   ├── llm.py           # LLM client (OpenAI-compatible API)
-│   ├── stt.py           # faster-whisper speech-to-text
-│   ├── tts.py           # TTS client (spawns subprocess worker)
-│   ├── tts_worker.py    # TTS subprocess (Kokoro + GPL deps, isolated)
-│   ├── monitor.py       # System resource monitoring (CPU/GPU/RAM)
-│   ├── audio.py         # PulseAudio / ALSA device helpers
-│   └── cli.py           # Typer CLI (chat, ask, info)
+│   ├── pipeline.py       # Audio I/O, VAD loop, TTS streaming
+│   ├── config.py         # Configuration dataclasses + YAML loader
+│   ├── llm.py            # LLM client (OpenAI-compatible, streams to llama-server)
+│   ├── stt.py            # faster-whisper speech-to-text
+│   ├── tts.py            # TTS client (spawns subprocess worker)
+│   ├── tts_worker.py     # TTS subprocess (Kokoro + GPL deps, isolated)
+│   ├── manager.py        # llama-server lifecycle, PID files, GGUF discovery
+│   ├── optimize.py       # System optimizations with state persistence
+│   ├── setup_wizard.py   # First-time setup logic (build, download, venv)
+│   ├── monitor.py        # CPU/GPU/RAM stats
+│   └── audio.py          # PulseAudio / ALSA device helpers
 ├── config/
-│   └── settings.yaml    # All runtime configuration
-├── voices/              # TTS voice files (gitignored)
-├── run_voice_chat.py    # Main voice assistant entry point
-└── main.py              # CLI entry point
+│   └── settings.yaml     # All runtime configuration
+├── voices/               # TTS voice files (gitignored)
+├── manage.py             # ./jetson-assistant CLI entry point
+└── run_voice_chat.py     # Voice pipeline entry point
 ```
 
 ## Performance (Orin Nano 8GB)
