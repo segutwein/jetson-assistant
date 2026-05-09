@@ -127,6 +127,11 @@ def setup(
 
     # ── Step 3: Download model ─────────────────────────────────
     console.print("\n[bold]Step 3/4 — Model[/bold]")
+    console.print(
+        "  [dim]A free HuggingFace account is required to download models.\n"
+        "  If not logged in yet: [bold]hf auth login[/bold]  "
+        "(token at huggingface.co/settings/tokens)[/dim]"
+    )
 
     if skip_model:
         console.print("  [dim]Skipped (--skip-model)[/dim]")
