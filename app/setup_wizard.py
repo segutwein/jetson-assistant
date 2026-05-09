@@ -11,25 +11,28 @@ MODELS_DIR = Path.home() / "models"
 
 RECOMMENDED_MODELS = [
     {
-        "name": "Gemma 3 4B  Q4_K_M",
-        "repo": "bartowski/gemma-3-4b-it-GGUF",
-        "filename": "gemma-3-4b-it-Q4_K_M.gguf",
-        "size": "~2.7 GB",
-        "description": "Recommended — good balance of quality and speed",
-    },
-    {
         "name": "Qwen3 4B   Q4_K_M",
         "repo": "bartowski/Qwen3-4B-GGUF",
         "filename": "Qwen3-4B-Q4_K_M.gguf",
         "size": "~2.6 GB",
-        "description": "Strong reasoning, good for Q&A",
+        "description": "Recommended — strong reasoning, Apache 2.0 (no login required)",
+        "gated": False,
+    },
+    {
+        "name": "Gemma 3 4B  Q4_K_M",
+        "repo": "bartowski/gemma-3-4b-it-GGUF",
+        "filename": "gemma-3-4b-it-Q4_K_M.gguf",
+        "size": "~2.7 GB",
+        "description": "Good quality — requires HuggingFace login + Google license",
+        "gated": True,
     },
     {
         "name": "Gemma 3 1B  Q8_0",
         "repo": "ggml-org/gemma-3-1b-it-GGUF",
         "filename": "gemma-3-1b-it-Q8_0.gguf",
         "size": "~1.3 GB",
-        "description": "Fastest, lower quality — good for testing",
+        "description": "Fastest, lower quality — requires HuggingFace login + Google license",
+        "gated": True,
     },
 ]
 
@@ -149,6 +152,37 @@ def _ensure_huggingface_hub() -> bool:
         return rc == 0
 
 
+def check_hf_login() -> bool:
+    """Return True if a HuggingFace token is saved locally."""
+    if not _ensure_huggingface_hub():
+        return False
+    try:
+        from huggingface_hub import HfFolder
+        return HfFolder.get_token() is not None
+    except Exception:
+        return False
+
+
+def hf_login() -> bool:
+    """Run `huggingface-cli login` interactively. Return True on success."""
+    hf_cli = shutil.which("huggingface-cli")
+    if not hf_cli:
+        rc = subprocess.run(
+            [sys.executable, "-m", "pip", "install", "huggingface_hub"],
+        ).returncode
+        if rc != 0:
+            return False
+        hf_cli = shutil.which("huggingface-cli")
+    if not hf_cli:
+        return False
+    rc = subprocess.run([hf_cli, "login"]).returncode
+    return rc == 0
+
+
+class GatedModelError(Exception):
+    """Raised when a model download fails because the repo is gated (HTTP 401/403)."""
+
+
 def download_model(repo: str, filename: str) -> Optional[Path]:
     if not _ensure_huggingface_hub():
         return None
@@ -167,6 +201,9 @@ def download_model(repo: str, filename: str) -> Optional[Path]:
         )
         return Path(path)
     except Exception as e:
+        msg = str(e)
+        if "401" in msg or "403" in msg or "gated" in msg.lower() or "not found" in msg.lower():
+            raise GatedModelError(repo) from e
         print(f"Download failed: {e}")
         return None
 
