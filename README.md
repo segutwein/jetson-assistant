@@ -161,3 +161,7 @@ We welcome community contributions. Please see [CONTRIBUTING.md](CONTRIBUTING.md
 ## License
 
 Apache 2.0 — see [LICENSE](LICENSE) for details.
+
+## Attribution
+
+Forked from [NVIDIA-AI-IOT/reachy-mini-jetson-assistant](https://github.com/NVIDIA-AI-IOT/reachy-mini-jetson-assistant). Original work copyright © 2023–2025 NVIDIA CORPORATION & AFFILIATES.
