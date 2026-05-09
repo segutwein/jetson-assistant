@@ -91,7 +91,11 @@ def setup(
 
     if missing_required:
         console.print("\n[red]Missing required tools. Install them first:[/red]")
-        console.print("  [dim]sudo apt-get install -y cmake build-essential git[/dim]")
+        fixes = ["sudo apt-get install -y cmake build-essential git"]
+        if "python3-venv" in missing_required:
+            fixes.append("sudo apt install python3.10-venv")
+        for fix in fixes:
+            console.print(f"  [dim]{fix}[/dim]")
         raise typer.Exit(1)
 
     # ── Step 2: Build llama.cpp ────────────────────────────────
@@ -164,7 +168,12 @@ def setup(
             if setup_venv(project_dir):
                 console.print("  [green]✓ venv ready[/green]")
             else:
-                console.print("  [yellow]⚠ venv setup failed — check output above[/yellow]")
+                console.print("  [red]✗ venv setup failed.[/red]")
+                console.print(
+                    "  If you see 'ensurepip is not available', install the missing package:\n"
+                    "  [dim]sudo apt install python3.10-venv[/dim]\n"
+                    "  Then re-run: [dim]./jetson-assistant setup --skip-llama --skip-model[/dim]"
+                )
 
     # ── Done ───────────────────────────────────────────────────
     console.print()

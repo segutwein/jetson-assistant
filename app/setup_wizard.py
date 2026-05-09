@@ -63,13 +63,23 @@ _REQUIRED = ["git", "cmake", "make"]
 _OPTIONAL = ["nvcc"]  # cmake can sometimes find CUDA without nvcc in PATH
 
 
+def check_venv_module() -> Optional[str]:
+    """Check that python3.10 -m venv works (requires python3.10-venv on Debian/Ubuntu)."""
+    r = subprocess.run(
+        ["python3.10", "-m", "venv", "--help"],
+        capture_output=True,
+    )
+    return "python3.10" if r.returncode == 0 else None
+
+
 def check_prerequisites() -> dict:
     results = {
-        "git":   (check_tool("git"),  True),
-        "cmake": (check_tool("cmake"), True),
-        "make":  (check_tool("make"),  True),
-        "nvcc":  (check_cuda(),        False),   # optional
-        "pip3":  (check_tool("pip3") or check_tool("pip"), True),
+        "git":         (check_tool("git"),   True),
+        "cmake":       (check_tool("cmake"), True),
+        "make":        (check_tool("make"),  True),
+        "nvcc":        (check_cuda(),        False),  # optional
+        "pip3":        (check_tool("pip3") or check_tool("pip"), True),
+        "python3-venv": (check_venv_module(), True),
     }
     return results
 
