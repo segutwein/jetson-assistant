@@ -234,8 +234,6 @@ class MicRecorder:
                        f"--rate={SAMPLE_RATE}", f"--channels={CHANNELS}", "--raw"]
         else:
             self.console.print("  [yellow]PA source not found, using ALSA direct[/yellow]")
-            kill_pulseaudio()
-            time.sleep(0.5)
             plughw = hw.replace("hw:", "plughw:")
             rec_cmd = ["arecord", "-D", plughw, "-f", "S16_LE", "-r", str(SAMPLE_RATE),
                        "-c", str(CHANNELS), "-t", "raw"]
@@ -247,7 +245,16 @@ class MicRecorder:
                 break
             err = self._proc.stderr.read().decode(errors="replace").strip()
             self.console.print(f"  [red]Mic attempt {attempt+1} failed: {err}[/red]")
-            time.sleep(1)
+            # If ALSA says device is busy, release PulseAudio and retry once.
+            # Only do this as a last resort — killing PA disconnects BT audio.
+            if attempt == 0 and self.pa_source is None and (
+                "busy" in err.lower() or "device or resource busy" in err.lower()
+            ):
+                self.console.print("  [dim]ALSA device busy — releasing PulseAudio...[/dim]")
+                kill_pulseaudio()
+                time.sleep(0.5)
+            else:
+                time.sleep(1)
 
         if self._proc is None or self._proc.poll() is not None:
             return False
@@ -269,7 +276,8 @@ class MicRecorder:
                 self.console.print("  Mic: [red]✗ silent — unmute![/red]")
         else:
             self.console.print(
-                f"  [red]Mic: no audio data! arecord running: {self._proc.poll() is None}[/red]"
+                f"  [red]Mic: no audio data (arecord running: {self._proc.poll() is None})[/red]\n"
+                "  [dim]Check 'arecord -l' and set audio.input_device in config/settings.yaml[/dim]"
             )
 
         return True
