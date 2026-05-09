@@ -15,24 +15,24 @@ RECOMMENDED_MODELS = [
         "repo": "bartowski/Qwen3-4B-GGUF",
         "filename": "Qwen3-4B-Q4_K_M.gguf",
         "size": "~2.6 GB",
-        "description": "Recommended — strong reasoning, Apache 2.0 (no login required)",
-        "gated": False,
+        "description": "Recommended — strong reasoning, Apache 2.0",
+        "license_url": None,
     },
     {
         "name": "Gemma 3 4B  Q4_K_M",
         "repo": "bartowski/gemma-3-4b-it-GGUF",
         "filename": "gemma-3-4b-it-Q4_K_M.gguf",
         "size": "~2.7 GB",
-        "description": "Good quality — requires HuggingFace login + Google license",
-        "gated": True,
+        "description": "Good quality — accept Google license before downloading",
+        "license_url": "https://huggingface.co/bartowski/gemma-3-4b-it-GGUF",
     },
     {
         "name": "Gemma 3 1B  Q8_0",
         "repo": "ggml-org/gemma-3-1b-it-GGUF",
         "filename": "gemma-3-1b-it-Q8_0.gguf",
         "size": "~1.3 GB",
-        "description": "Fastest, lower quality — requires HuggingFace login + Google license",
-        "gated": True,
+        "description": "Fastest, lower quality — accept Google license before downloading",
+        "license_url": "https://huggingface.co/ggml-org/gemma-3-1b-it-GGUF",
     },
 ]
 
@@ -152,10 +152,20 @@ def _ensure_huggingface_hub() -> bool:
         return rc == 0
 
 
+def _hf_cmd() -> Optional[str]:
+    """Return the HuggingFace CLI binary: `hf` (new) or `huggingface-cli` (old)."""
+    return shutil.which("hf") or shutil.which("huggingface-cli")
+
+
 def check_hf_login() -> bool:
     """Return True if a HuggingFace token is saved locally."""
-    if not _ensure_huggingface_hub():
-        return False
+    cmd = _hf_cmd()
+    if cmd:
+        name = Path(cmd).name
+        check_args = [cmd, "auth", "token"] if name == "hf" else [cmd, "whoami"]
+        r = subprocess.run(check_args, capture_output=True, text=True)
+        return r.returncode == 0 and "Not logged in" not in r.stdout
+    # Python fallback
     try:
         from huggingface_hub import HfFolder
         return HfFolder.get_token() is not None
@@ -165,47 +175,60 @@ def check_hf_login() -> bool:
 
 def hf_login() -> bool:
     """Run HuggingFace login interactively. Return True on success."""
-    # New CLI is `hf auth login`; older installs used `huggingface-cli login`
-    hf_new = shutil.which("hf")
-    hf_old = shutil.which("huggingface-cli")
-    if hf_new:
-        rc = subprocess.run([hf_new, "auth", "login"]).returncode
-    elif hf_old:
-        rc = subprocess.run([hf_old, "login"]).returncode
-    else:
-        # Fall back to Python module login
-        rc = subprocess.run(
-            [sys.executable, "-c",
-             "from huggingface_hub import login; login()"]
-        ).returncode
-    return rc == 0
+    cmd = _hf_cmd()
+    if cmd:
+        name = Path(cmd).name
+        login_args = [cmd, "auth", "login"] if name == "hf" else [cmd, "login"]
+        return subprocess.run(login_args).returncode == 0
+    # Python fallback
+    return subprocess.run(
+        [sys.executable, "-c", "from huggingface_hub import login; login()"]
+    ).returncode == 0
 
 
-class GatedModelError(Exception):
-    """Raised when a model download fails because the repo is gated (HTTP 401/403)."""
+class DownloadAuthError(Exception):
+    """Raised when a model download fails due to missing authentication (HTTP 401/403)."""
 
 
 def download_model(repo: str, filename: str) -> Optional[Path]:
-    if not _ensure_huggingface_hub():
-        return None
-
     MODELS_DIR.mkdir(parents=True, exist_ok=True)
     dest = MODELS_DIR / filename
     if dest.exists():
         return dest
 
-    from huggingface_hub import hf_hub_download
+    cmd = _hf_cmd()
+    if cmd:
+        name = Path(cmd).name
+        # `hf download repo --include file --local-dir dir`
+        # `huggingface-cli download repo file --local-dir dir`
+        if name == "hf":
+            args = [cmd, "download", repo, "--include", filename, "--local-dir", str(MODELS_DIR)]
+        else:
+            args = [cmd, "download", repo, filename, "--local-dir", str(MODELS_DIR)]
+        r = subprocess.run(args, capture_output=True, text=True)
+        if r.returncode == 0 and dest.exists():
+            return dest
+        out = r.stdout + r.stderr
+        if "401" in out or "403" in out or "not logged in" in out.lower() or "token" in out.lower():
+            raise DownloadAuthError(repo)
+        print(out.strip())
+        return None
+
+    # Python fallback via huggingface_hub
+    if not _ensure_huggingface_hub():
+        return None
+    from huggingface_hub import hf_hub_download, HfFolder
+    token = HfFolder.get_token()
     try:
         path = hf_hub_download(
-            repo_id=repo,
-            filename=filename,
-            local_dir=str(MODELS_DIR),
+            repo_id=repo, filename=filename,
+            local_dir=str(MODELS_DIR), token=token,
         )
         return Path(path)
     except Exception as e:
         msg = str(e)
-        if "401" in msg or "403" in msg or "gated" in msg.lower() or "not found" in msg.lower():
-            raise GatedModelError(repo) from e
+        if "401" in msg or "403" in msg:
+            raise DownloadAuthError(repo) from e
         print(f"Download failed: {e}")
         return None
 

@@ -36,7 +36,7 @@ from app.optimize import build_plan, apply_optimizations, restore_optimizations,
 from app.monitor import get_system_stats, format_stats
 from app.setup_wizard import (
     check_prerequisites, llama_server_path, clone_llama_cpp, build_llama_cpp,
-    download_model, setup_venv, check_hf_login, hf_login, GatedModelError,
+    download_model, setup_venv, check_hf_login, hf_login, DownloadAuthError,
     LLAMA_DIR, MODELS_DIR, RECOMMENDED_MODELS,
 )
 
@@ -173,9 +173,11 @@ def setup(
 def _model_download_dialog():
     console.print("\n  [bold]Recommended models:[/bold]")
     for i, m in enumerate(RECOMMENDED_MODELS, 1):
-        gated_tag = "  [yellow][gated][/yellow]" if m.get("gated") else ""
+        license_tag = (
+            f"  [yellow][accept license first][/yellow]" if m.get("license_url") else ""
+        )
         console.print(
-            f"  [cyan]{i}[/cyan]  {m['name']}  {m['size']}{gated_tag}\n"
+            f"  [cyan]{i}[/cyan]  {m['name']}  {m['size']}{license_tag}\n"
             f"      [dim]{m['description']}[/dim]"
         )
     console.print(f"  [cyan]{len(RECOMMENDED_MODELS)+1}[/cyan]  Skip")
@@ -193,38 +195,43 @@ def _model_download_dialog():
 
     m = RECOMMENDED_MODELS[idx]
 
-    # Gated models need a HuggingFace token
-    if m.get("gated"):
-        if not check_hf_login():
-            console.print(
-                f"\n  [yellow]This model is gated.[/yellow] You need a HuggingFace account\n"
-                f"  and must accept the license at:\n"
-                f"  [dim]https://huggingface.co/{m['repo']}[/dim]\n"
-            )
-            if Confirm.ask("  Log in to HuggingFace now?", default=True):
-                if not hf_login():
-                    console.print("  [red]Login failed. Skipping download.[/red]")
-                    console.print(
-                        f"  Run [dim]huggingface-cli login[/dim] manually,\n"
-                        f"  then re-run [dim]./jetson-assistant setup --skip-llama --skip-venv[/dim]"
-                    )
-                    return
-            else:
-                console.print("  [dim]Skipped.[/dim]")
+    if m.get("license_url"):
+        console.print(
+            f"\n  [yellow]License required.[/yellow] Accept at:\n"
+            f"  [dim]{m['license_url']}[/dim]\n"
+        )
+
+    # HuggingFace now requires a token for all downloads
+    if not check_hf_login():
+        console.print(
+            "  [yellow]HuggingFace login required[/yellow] "
+            "(needed for all model downloads).\n"
+        )
+        if Confirm.ask("  Log in now?", default=True):
+            if not hf_login():
+                console.print("  [red]Login failed. Skipping download.[/red]")
+                console.print(
+                    "  Run [dim]hf auth login[/dim] manually, then re-run:\n"
+                    "  [dim]./jetson-assistant setup --skip-llama --skip-venv[/dim]"
+                )
                 return
         else:
-            console.print("  [dim]HuggingFace token found.[/dim]")
+            console.print("  [dim]Skipped.[/dim]")
+            return
 
     console.print(f"  Downloading [green]{m['filename']}[/green] ({m['size']})...")
     try:
         path = download_model(m["repo"], m["filename"])
-    except GatedModelError:
-        console.print("  [red]✗ Download failed: model is gated (HTTP 401).[/red]")
+    except DownloadAuthError:
+        console.print("  [red]✗ Download failed: authentication error (HTTP 401).[/red]")
         console.print(
-            f"\n  To fix:\n"
-            f"  1. Accept the license at [dim]https://huggingface.co/{m['repo']}[/dim]\n"
-            f"  2. Run [dim]huggingface-cli login[/dim]\n"
-            f"  3. Re-run [dim]./jetson-assistant setup --skip-llama --skip-venv[/dim]"
+            "\n  To fix:\n"
+            "  1. Run [dim]hf auth login[/dim] and enter your token\n"
+            + (
+                f"  2. Accept the license at [dim]{m['license_url']}[/dim]\n"
+                if m.get("license_url") else ""
+            ) +
+            "  Then re-run: [dim]./jetson-assistant setup --skip-llama --skip-venv[/dim]"
         )
         return
 
@@ -232,9 +239,10 @@ def _model_download_dialog():
         console.print(f"  [green]✓ Saved to {path}[/green]")
     else:
         console.print("  [red]✗ Download failed.[/red]")
-        console.print("  Try manually: [dim]huggingface-cli download "
-                      f"{m['repo']} --include '{m['filename']}' "
-                      f"--local-dir ~/models[/dim]")
+        console.print(
+            f"  Try manually: [dim]hf download {m['repo']} "
+            f"--include '{m['filename']}' --local-dir ~/models[/dim]"
+        )
 
 
 # ── start ─────────────────────────────────────────────────────────
