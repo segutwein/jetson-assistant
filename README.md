@@ -102,13 +102,15 @@ jetson-assistant/
 
 ## Performance (Orin Nano 8GB)
 
-| Metric | Value |
-|--------|-------|
-| STT latency | ~0.7s (small.en, beam=1) |
-| LLM TTFT | ~1–2s (Gemma 3 4B Q4_K_M, warm) |
-| TTS latency (first chunk) | ~0.3s (Kokoro GPU) |
-| End-to-end (speak → response) | ~2–4s |
-| Peak RAM | ~5–6 GB (STT + LLM + TTS) |
+Measured with `./jetson-assistant benchmark` — fixed inputs, reproducible across runs.
+
+| Component | Time | Model |
+|-----------|-----:|-------|
+| TTS (synthesis) | 3.66 s | Kokoro `af_sarah`, CPU |
+| STT (transcribe) | 1.19 s | faster-whisper `small.en`, CUDA |
+| LLM (time to first token) | 3.55 s | Gemma 4 E4B Q4_K_M |
+| LLM (full response) | 4.15 s | Gemma 4 E4B Q4_K_M |
+| **Total** | **9.01 s** | TTS + STT + LLM |
 
 ## Roadmap
 
