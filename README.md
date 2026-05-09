@@ -34,6 +34,7 @@ llama.cpp is compiled directly on the Jetson — no Docker, no Python wrapper ov
 - **NVIDIA Jetson Orin Nano** (8GB) with JetPack 6.x, Python 3.10
 - **USB microphone** and **speaker** (or USB audio device)
 - **NVMe SSD** recommended for swap and model storage
+- **HuggingFace account** — required to download models (`hf auth login`)
 
 ## Setup
 
