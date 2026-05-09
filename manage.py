@@ -845,7 +845,7 @@ def _test_vad(cfg):
             score = vad(raw.tobytes())
             bar_len = int(score * 30)
             bar = "[green]" + "█" * bar_len + "[/green]" + "░" * (30 - bar_len)
-            label = "[bold green] SPEECH[/bold green]" if score > cfg.vad.threshold else "[dim] silence[/dim]"
+            label = "[bold green] SPEECH[/bold green]" if score > cfg.vad.silero_threshold else "[dim] silence[/dim]"
             console.print(f"  {bar} {score:.2f}{label}", end="\r", highlight=False)
 
     console.print("\n  [green]✓ VAD test complete[/green]")
