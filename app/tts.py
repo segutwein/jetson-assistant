@@ -107,13 +107,28 @@ class KokoroTTS:
                  "--lang", self.lang],
                 stdin=subprocess.PIPE,
                 stdout=subprocess.PIPE,
-                stderr=None,  # inherit parent's stderr for log visibility
+                stderr=subprocess.PIPE,  # filtered below — see _stderr_filter thread
                 text=True,
                 bufsize=1,
             )
         except Exception as e:
             print(f"TTS worker spawn failed: {e}")
             return False
+
+        # Forward worker stderr to our stderr, skipping known harmless warnings
+        import threading
+        _SUPPRESS = [
+            "DiscoverDevicesForPlatform",
+            "device_discovery.cc",
+            "GPU device discovery failed",
+        ]
+
+        def _stderr_filter():
+            for line in self._proc.stderr:
+                if not any(s in line for s in _SUPPRESS):
+                    sys.stderr.write(line)
+
+        threading.Thread(target=_stderr_filter, daemon=True).start()
 
         line = self._proc.stdout.readline()
         if not line:
