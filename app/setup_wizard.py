@@ -19,20 +19,12 @@ RECOMMENDED_MODELS = [
         "license_url": None,
     },
     {
-        "name": "Gemma 3 4B  Q4_K_M",
-        "repo": "bartowski/gemma-3-4b-it-GGUF",
-        "filename": "gemma-3-4b-it-Q4_K_M.gguf",
-        "size": "~2.7 GB",
-        "description": "Good quality — accept Google license before downloading",
-        "license_url": "https://huggingface.co/bartowski/gemma-3-4b-it-GGUF",
-    },
-    {
-        "name": "Gemma 3 1B  Q8_0",
-        "repo": "ggml-org/gemma-3-1b-it-GGUF",
-        "filename": "gemma-3-1b-it-Q8_0.gguf",
-        "size": "~1.3 GB",
-        "description": "Fastest, lower quality — accept Google license before downloading",
-        "license_url": "https://huggingface.co/ggml-org/gemma-3-1b-it-GGUF",
+        "name": "Qwen3 1.7B Q8_0",
+        "repo": "bartowski/Qwen3-1.7B-GGUF",
+        "filename": "Qwen3-1.7B-Q8_0.gguf",
+        "size": "~1.9 GB",
+        "description": "Faster, lower quality — good for testing",
+        "license_url": None,
     },
 ]
 
