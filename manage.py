@@ -293,6 +293,8 @@ def start(
     ctx: int = typer.Option(4096, "--ctx", help="Context window size"),
     keep_server: bool = typer.Option(False, "--keep-server", "-k",
                                      help="Keep llama-server running after voice chat exits"),
+    server_only: bool = typer.Option(False, "--server-only",
+                                     help="Start llama-server only, skip voice chat"),
 ):
     """Start the voice assistant: pick a model, launch llama-server, start voice chat."""
     console.print(Panel.fit(
@@ -356,6 +358,12 @@ def start(
         _launch_server(model_path, port, ctx)
 
     # ── Start voice chat ───────────────────────────────────────
+    if server_only:
+        console.print("\n  [green]llama-server is running.[/green]  "
+                      "[dim](--server-only: skipping voice chat)[/dim]")
+        console.print("  Stop with: [dim]./jetson-assistant stop[/dim]")
+        return
+
     console.print("\n[bold green]Starting voice chat...[/bold green]\n")
     voice_chat = Path(__file__).parent / "run_voice_chat.py"
     try:
