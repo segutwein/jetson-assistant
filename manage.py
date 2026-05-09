@@ -91,7 +91,7 @@ def setup(
 
     if missing_required:
         console.print("\n[red]Missing required tools. Install them first:[/red]")
-        fixes = ["sudo apt-get install -y cmake build-essential git"]
+        fixes = ["sudo apt-get install -y cmake build-essential git portaudio19-dev"]
         if "python3-venv" in missing_required:
             fixes.append("sudo apt install python3.10-venv")
         for fix in fixes:

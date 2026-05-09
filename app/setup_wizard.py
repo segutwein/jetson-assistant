@@ -72,14 +72,22 @@ def check_venv_module() -> Optional[str]:
     return "python3.10" if r.returncode == 0 else None
 
 
+def check_portaudio() -> Optional[str]:
+    """Check that PortAudio is installed (needed by sounddevice for mic/speaker)."""
+    import ctypes.util
+    lib = ctypes.util.find_library("portaudio")
+    return lib if lib else None
+
+
 def check_prerequisites() -> dict:
     results = {
-        "git":         (check_tool("git"),   True),
-        "cmake":       (check_tool("cmake"), True),
-        "make":        (check_tool("make"),  True),
-        "nvcc":        (check_cuda(),        False),  # optional
-        "pip3":        (check_tool("pip3") or check_tool("pip"), True),
+        "git":          (check_tool("git"),   True),
+        "cmake":        (check_tool("cmake"), True),
+        "make":         (check_tool("make"),  True),
+        "nvcc":         (check_cuda(),        False),  # optional
+        "pip3":         (check_tool("pip3") or check_tool("pip"), True),
         "python3-venv": (check_venv_module(), True),
+        "portaudio":    (check_portaudio(),   True),
     }
     return results
 
