@@ -376,9 +376,9 @@ def status():
     state = load_state()
     if state:
         table.add_row("optimized", "[yellow]yes[/yellow]",
-                      "run 'restore' to undo")
+                      "optimize --restore to undo")
     else:
-        table.add_row("optimized", "[dim]no[/dim]", "run 'optimize' to apply")
+        table.add_row("optimized", "[dim]no[/dim]", "optimize to apply")
 
     console.print(table)
     console.print()
@@ -387,8 +387,45 @@ def status():
 # ── optimize ──────────────────────────────────────────────────────
 
 @app.command()
-def optimize():
-    """Apply memory optimizations for better LLM performance on Jetson."""
+def optimize(
+    restore: bool = typer.Option(False, "--restore", help="Restore system to pre-optimization state"),
+    status: bool = typer.Option(False, "--status", help="Show current optimization state"),
+):
+    """Manage memory optimizations for better LLM performance on Jetson.
+
+    Default: analyze and apply optimizations.
+    --restore: revert all applied optimizations.
+    --status:  show what is currently applied.
+    """
+    if restore:
+        _optimize_restore()
+    elif status:
+        _optimize_status()
+    else:
+        _optimize_apply()
+
+
+def _optimize_status():
+    state = load_state()
+    console.print()
+    if not state:
+        console.print("  [dim]No optimizations applied.[/dim]")
+        console.print("  Run [bold]optimize[/bold] to apply.")
+        return
+
+    applied = (
+        state.get("applied", []) +
+        state.get("services_disabled", []) +
+        state.get("zram_disabled", [])
+    )
+    console.print(f"  [yellow]Optimized[/yellow] — {len(applied)} change(s) active:\n")
+    for item in applied:
+        console.print(f"    [dim]• {item}[/dim]")
+    console.print(f"\n  Run [bold]optimize --restore[/bold] to revert.")
+    console.print()
+
+
+def _optimize_apply():
     console.print(Panel.fit(
         "[bold yellow]Memory Optimization[/bold yellow]\n"
         "[dim]Safe, reversible system tuning for Jetson Orin Nano[/dim]",
@@ -397,13 +434,12 @@ def optimize():
 
     if load_state():
         console.print("[yellow]Optimizations already applied.[/yellow]")
-        console.print("Run [bold]restore[/bold] first if you want to reapply.")
+        console.print("Run [bold]optimize --restore[/bold] first to reapply.")
         raise typer.Exit()
 
     console.print("\n[bold]Analyzing system...[/bold]")
     plan = build_plan()
 
-    # Show plan
     table = Table(box=box.SIMPLE, padding=(0, 2))
     table.add_column("Optimization")
     table.add_column("Est. savings", justify="right")
@@ -455,23 +491,19 @@ def optimize():
     console.print("\n[bold]Applying...[/bold]")
     state = apply_optimizations(plan)
 
-    applied = (
+    n = (
         len(state.get("services_disabled", [])) +
         len(state.get("zram_disabled", [])) +
         len(state.get("applied", []))
     )
-    console.print(f"\n[green]✓ Done — {applied} changes applied.[/green]")
-    console.print("  State saved. Run [bold]restore[/bold] to undo.\n")
+    console.print(f"\n[green]✓ Done — {n} changes applied.[/green]")
+    console.print("  Run [bold]optimize --restore[/bold] to undo.\n")
 
     if Confirm.ask("Reboot now to fully apply all changes?", default=False):
         subprocess.run(["sudo", "reboot"])
 
 
-# ── restore ───────────────────────────────────────────────────────
-
-@app.command()
-def restore():
-    """Restore system to pre-optimization state."""
+def _optimize_restore():
     state = load_state()
     if not state:
         console.print("[yellow]No saved optimization state found. Nothing to restore.[/yellow]")
