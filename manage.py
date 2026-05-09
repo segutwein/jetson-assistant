@@ -524,10 +524,12 @@ def status():
 def optimize(
     restore: bool = typer.Option(False, "--restore", help="Restore system to pre-optimization state"),
     status: bool = typer.Option(False, "--status", help="Show current optimization state"),
+    all_: bool = typer.Option(False, "--all", help="Apply all optimizations without prompting"),
 ):
     """Manage memory optimizations for better LLM performance on Jetson.
 
-    Default: analyze and apply optimizations.
+    Default: step-by-step dialog — confirm each optimization individually.
+    --all:     apply every optimization without prompting.
     --restore: revert all applied optimizations.
     --status:  show what is currently applied.
     """
@@ -536,7 +538,7 @@ def optimize(
     elif status:
         _optimize_status()
     else:
-        _optimize_apply()
+        _optimize_apply(skip_prompts=all_)
 
 
 def _optimize_status():
@@ -559,7 +561,7 @@ def _optimize_status():
     console.print()
 
 
-def _optimize_apply():
+def _optimize_apply(skip_prompts: bool = False):
     console.print(Panel.fit(
         "[bold yellow]Memory Optimization[/bold yellow]\n"
         "[dim]Safe, reversible system tuning for Jetson Orin Nano[/dim]",
@@ -574,56 +576,79 @@ def _optimize_apply():
     console.print("\n[bold]Analyzing system...[/bold]")
     plan = build_plan()
 
-    table = Table(box=box.SIMPLE, padding=(0, 2))
-    table.add_column("Optimization")
-    table.add_column("Est. savings", justify="right")
-    table.add_column("Will change")
+    def _ask(question: str, default: bool) -> bool:
+        return True if skip_prompts else Confirm.ask(question, default=default)
 
+    # Build a filtered plan based on user choices
+    approved = {
+        "target": False,
+        "services_to_disable": [],
+        "zram": False,
+        "jetson_clocks": False,
+    }
+
+    console.print()
+
+    # ── GUI / target ──────────────────────────────────────────
     row = plan["target"]
-    table.add_row(
-        row["description"],
-        f"~{row['savings_mb']} MB" if row["change"] else "—",
-        "[green]yes[/green]" if row["change"] else "[dim]already set[/dim]",
-    )
+    if row["change"]:
+        console.print(f"  [bold]Disable desktop GUI[/bold] (switch to multi-user.target)"
+                      f"  [dim]~{row['savings_mb']} MB[/dim]")
+        approved["target"] = _ask("  Apply?", default=True)
+    else:
+        console.print("  [dim]GUI already disabled (multi-user.target) — skipping[/dim]")
 
-    row = plan["services"]
-    services = list(row["to_disable"].keys())
-    table.add_row(
-        row["description"],
-        f"~{row['savings_mb']} MB" if services else "—",
-        "\n".join(services) if services else "[dim]none to disable[/dim]",
-    )
+    # ── Services ──────────────────────────────────────────────
+    services = plan["services"]["to_disable"]
+    if services:
+        console.print()
+        console.print("  [bold]Disable unused services:[/bold]")
+        for svc, meta in services.items():
+            console.print(f"    [cyan]{svc}[/cyan]  [dim]{meta['description']}[/dim]")
+            if _ask(f"    Disable {svc}?", default=meta["default_on"]):
+                approved["services_to_disable"].append(svc)
+    else:
+        console.print("\n  [dim]No unused services found — skipping[/dim]")
 
+    # ── zram ─────────────────────────────────────────────────
     row = plan["zram"]
-    table.add_row(
-        row["description"],
-        f"~{row['savings_mb']} MB" if row["active"] else "—",
-        "[green]yes[/green]" if row["active"] else "[dim]not active[/dim]",
-    )
+    if row["active"]:
+        console.print()
+        console.print(f"  [bold]Disable zram compressed swap[/bold]"
+                      f"  [dim]~{row['savings_mb']} MB  (use NVMe swap instead)[/dim]")
+        approved["zram"] = _ask("  Apply?", default=True)
+    else:
+        console.print("  [dim]zram not active — skipping[/dim]")
 
+    # ── jetson_clocks ─────────────────────────────────────────
     row = plan["jetson_clocks"]
-    table.add_row(
-        row["description"],
-        "performance",
-        "[green]yes[/green]" if row["available"] else "[dim]not found[/dim]",
-    )
+    if row["available"]:
+        console.print()
+        console.print("  [bold]Set all CPU/GPU clocks to maximum[/bold]  [dim](jetson_clocks)[/dim]")
+        approved["jetson_clocks"] = _ask("  Apply?", default=True)
+    else:
+        console.print("  [dim]jetson_clocks not found — skipping[/dim]")
 
-    console.print(table)
-
-    total = sum(
-        v["savings_mb"]
-        for v in [plan["target"], plan["services"], plan["zram"]]
-        if v.get("change") or v.get("active") or v.get("to_disable")
-    )
-    console.print(f"\n  Estimated total savings: [bold green]~{total} MB[/bold green]")
-    console.print("  [dim]A reboot is required to fully apply all changes.[/dim]\n")
-
-    if not Confirm.ask("Apply optimizations? (requires sudo)", default=False):
-        console.print("[yellow]Cancelled.[/yellow]")
+    # ── Nothing selected ─────────────────────────────────────
+    if (not approved["target"] and not approved["services_to_disable"]
+            and not approved["zram"] and not approved["jetson_clocks"]):
+        console.print("\n[yellow]Nothing selected — no changes made.[/yellow]")
         raise typer.Exit()
 
+    # ── Filter plan and apply ─────────────────────────────────
+    filtered_plan = {
+        "target": {**plan["target"], "change": approved["target"]},
+        "services": {**plan["services"],
+                     "to_disable": {s: plan["services"]["to_disable"][s]
+                                    for s in approved["services_to_disable"]}},
+        "zram":   {**plan["zram"], "active": approved["zram"],
+                   "to_disable": plan["zram"]["to_disable"] if approved["zram"] else {}},
+        "jetson_clocks": {**plan["jetson_clocks"],
+                          "available": approved["jetson_clocks"]},
+    }
+
     console.print("\n[bold]Applying...[/bold]")
-    state = apply_optimizations(plan)
+    state = apply_optimizations(filtered_plan)
 
     n = (
         len(state.get("services_disabled", [])) +
@@ -631,9 +656,10 @@ def _optimize_apply():
         len(state.get("applied", []))
     )
     console.print(f"\n[green]✓ Done — {n} changes applied.[/green]")
+    console.print("  [dim]A reboot is required to fully apply all changes.[/dim]")
     console.print("  Run [bold]optimize --restore[/bold] to undo.\n")
 
-    if Confirm.ask("Reboot now to fully apply all changes?", default=False):
+    if _ask("Reboot now to fully apply all changes?", default=False):
         subprocess.run(["sudo", "reboot"])
 
 

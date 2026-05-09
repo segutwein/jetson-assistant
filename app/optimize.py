@@ -9,17 +9,20 @@ from typing import Optional
 STATE_DIR = Path.home() / ".jetson-assistant"
 OPT_STATE_FILE = STATE_DIR / "optimization-state.json"
 
-# Services that are safe to disable on a headless voice assistant
+# Services that can be disabled on a headless voice assistant.
+# Each entry: (name, description, default_on)
+# default_on=False means the prompt defaults to "No" — use for services
+# that are intentionally kept in some setups (e.g. bluetooth for BT audio).
 _OPTIONAL_SERVICES = [
-    "bluetooth.service",
-    "avahi-daemon.service",
-    "cups.service",
-    "cups-browsed.service",
-    "ModemManager.service",
-    "snapd.service",
-    "apt-daily.service",
-    "apt-daily-upgrade.service",
-    "unattended-upgrades.service",
+    ("bluetooth.service",          "Bluetooth (disable only if not using BT audio)", False),
+    ("avahi-daemon.service",       "Avahi/mDNS daemon",                              True),
+    ("cups.service",               "CUPS print server",                              True),
+    ("cups-browsed.service",       "CUPS network printer discovery",                 True),
+    ("ModemManager.service",       "ModemManager (cellular modems)",                 True),
+    ("snapd.service",              "Snap package daemon",                            True),
+    ("apt-daily.service",          "Unattended apt downloads",                       True),
+    ("apt-daily-upgrade.service",  "Unattended apt upgrades",                        True),
+    ("unattended-upgrades.service","Unattended upgrades",                            True),
 ]
 
 _ZRAM_SERVICES = [
@@ -94,9 +97,9 @@ def build_plan() -> dict:
     }
 
     services = {}
-    for svc in _OPTIONAL_SERVICES:
+    for svc, desc, default_on in _OPTIONAL_SERVICES:
         if _service_exists(svc) and _service_enabled(svc):
-            services[svc] = True
+            services[svc] = {"description": desc, "default_on": default_on}
     plan["services"] = {
         "to_disable": services,
         "savings_mb": len(services) * 5,
