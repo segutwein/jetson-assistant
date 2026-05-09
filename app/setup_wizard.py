@@ -236,6 +236,75 @@ def download_model(repo: str, filename: str) -> Optional[Path]:
         return None
 
 
+# ── CTranslate2 CUDA build ────────────────────────────────────────
+
+CT2_DIR = Path.home() / "CTranslate2"
+CT2_CMAKE_FLAGS = [
+    "-DWITH_CUDA=ON",
+    "-DWITH_CUDNN=ON",
+    "-DCMAKE_CUDA_ARCHITECTURES=87",
+    "-DCMAKE_BUILD_TYPE=Release",
+    "-DCUDA_TOOLKIT_ROOT_DIR=/usr/local/cuda",
+    "-DOPENMP_RUNTIME=COMP",
+    "-DWITH_MKL=OFF",
+]
+CT2_VERSION = "v4.7.1"
+
+
+def ctranslate2_has_cuda() -> bool:
+    """Return True if the installed CTranslate2 was built with CUDA support."""
+    try:
+        import ctranslate2
+        return ctranslate2.get_cuda_device_count() > 0
+    except Exception:
+        return False
+
+
+def clone_ctranslate2() -> bool:
+    if CT2_DIR.exists():
+        return True
+    rc = subprocess.run([
+        "git", "clone", "--recursive", "--depth", "1",
+        "--branch", CT2_VERSION,
+        "https://github.com/OpenNMT/CTranslate2.git",
+        str(CT2_DIR),
+    ]).returncode
+    return rc == 0
+
+
+def build_ctranslate2(venv_dir: Path) -> bool:
+    import os
+    env = os.environ.copy()
+    env["PATH"] = "/usr/local/cuda/bin:" + env.get("PATH", "")
+    env["CUDA_HOME"] = "/usr/local/cuda"
+
+    build_dir = CT2_DIR / "build"
+    build_dir.mkdir(exist_ok=True)
+
+    rc = subprocess.run(
+        ["cmake", ".."] + CT2_CMAKE_FLAGS,
+        cwd=build_dir, env=env,
+    ).returncode
+    if rc != 0:
+        return False
+
+    nproc = subprocess.run(["nproc"], capture_output=True, text=True).stdout.strip() or "4"
+    rc = subprocess.run(
+        ["cmake", "--build", ".", "--config", "Release", "-j", nproc],
+        cwd=build_dir, env=env,
+    ).returncode
+    if rc != 0:
+        return False
+
+    # Install Python bindings into the venv
+    pip = venv_dir / "bin/pip"
+    rc = subprocess.run(
+        [str(pip), "install", "--force-reinstall", str(CT2_DIR / "python")],
+        env=env,
+    ).returncode
+    return rc == 0
+
+
 # ── Whisper model download ─────────────────────────────────────────
 
 def whisper_model_cached(model_name: str) -> bool:
