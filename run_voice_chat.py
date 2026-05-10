@@ -132,7 +132,7 @@ def main():
     console.print("\n[green bold]Ready — speak anytime![/green bold]\n")
 
     if tts:
-        r = tts.synthesize("Ready.")
+        r = tts.synthesize(config.tts.ready_phrase)
         if r.get("audio") is not None:
             from app.pipeline import play_audio
 
