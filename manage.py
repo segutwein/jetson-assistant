@@ -448,7 +448,7 @@ def start(
         None, "--max-chunk-words", help="Max words per TTS chunk after the first"
     ),
     tts_backend: str = typer.Option(
-        None, "--tts-backend", help="TTS backend: kokoro (default) or piper"
+        None, "--tts-backend", help="TTS backend: piper (default) or kokoro"
     ),
     piper_model: str = typer.Option(
         None, "--piper-model", help="Piper voice model (e.g. de_DE-thorsten-medium)"
