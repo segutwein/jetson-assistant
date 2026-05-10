@@ -111,3 +111,63 @@ def test_write_local_config_creates_parent_dirs(tmp_path):
     path = tmp_path / "nested" / "dir" / "settings.local.yaml"
     write_local_config(path, {"tts": {"backend": "piper"}})
     assert path.exists()
+
+
+def test_write_local_config_includes_header(tmp_path):
+    from manage import write_local_config
+
+    path = tmp_path / "settings.local.yaml"
+    write_local_config(path, {"tts": {"backend": "piper"}})
+
+    raw = path.read_text()
+    assert "do not edit manually" in raw
+    assert "jetson-assistant config" in raw
+
+
+def test_write_local_config_recovers_from_corrupt_file(tmp_path):
+    from manage import write_local_config
+
+    path = tmp_path / "settings.local.yaml"
+    path.write_text(":::invalid yaml:::\n{[broken")
+
+    # Should not raise — treats corrupt file as empty and overwrites
+    write_local_config(path, {"tts": {"backend": "piper"}})
+
+    data = yaml.safe_load(path.read_text())
+    assert data["tts"]["backend"] == "piper"
+
+
+def test_write_local_config_recovers_from_non_dict_yaml(tmp_path):
+    from manage import write_local_config
+
+    path = tmp_path / "settings.local.yaml"
+    path.write_text("- just\n- a\n- list\n")  # valid YAML but not a dict
+
+    write_local_config(path, {"tts": {"backend": "piper"}})
+
+    data = yaml.safe_load(path.read_text())
+    assert data["tts"]["backend"] == "piper"
+
+
+def test_local_config_corrupt_falls_back_to_base(tmp_path):
+    base = tmp_path / "settings.yaml"
+    base.write_text("tts:\n  backend: kokoro\n")
+    local = tmp_path / "settings.local.yaml"
+    local.write_text(":::not valid yaml:::")
+
+    # Should not raise — corrupt local config is ignored, base values used
+    cfg = Config.load(config_path=str(base))
+    assert cfg.tts.backend == "kokoro"
+
+
+def test_local_config_deleted_after_load(tmp_path):
+    base = tmp_path / "settings.yaml"
+    base.write_text("tts:\n  backend: kokoro\n")
+    local = tmp_path / "settings.local.yaml"
+    local.write_text("tts:\n  backend: piper\n")
+
+    local.unlink()  # delete between runs
+
+    # Second load should fall back to base without error
+    cfg = Config.load(config_path=str(base))
+    assert cfg.tts.backend == "kokoro"
