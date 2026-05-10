@@ -455,8 +455,6 @@ def start(
     ),
 ):
     """Start the assistant: pick a model, launch llama-server, start voice or text chat."""
-    console.print(Panel.fit("[bold cyan]Jetson Voice Assistant[/bold cyan]", border_style="cyan"))
-
     # ── First-time config wizard ───────────────────────────────
     if not _LOCAL_CONFIG_PATH.exists():
         _run_config_wizard(first_time=True)
@@ -467,10 +465,9 @@ def start(
         from app.config import Config as _Cfg
 
         text = _Cfg.load().app.mode == "text"
-    if text:
-        console.print(
-            Panel.fit("[bold cyan]Jetson Text Assistant[/bold cyan]", border_style="cyan")
-        )
+
+    title = "Jetson Text Assistant" if text else "Jetson Voice Assistant"
+    console.print(Panel.fit(f"[bold cyan]{title}[/bold cyan]", border_style="cyan"))
 
     # ── Check llama-server binary ──────────────────────────────
     llama_bin = find_llama_server()
