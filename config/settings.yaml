@@ -30,8 +30,8 @@ tts:
   speed: 1.0
   lang: "en-us"                       # kokoro language code (ignored when backend=piper)
   piper_model: "en_US-lessac-medium"  # piper model name — e.g. de_DE-thorsten-medium for German
-  first_chunk_words: 3                # words before first TTS chunk is sent
-  max_chunk_words: 5                  # must be ≤ 2×first_chunk_words for gap-free audio (LLM ~5 w/s, speech ~2.5 w/s)
+  first_chunk_words: 5                # words before first TTS chunk is sent
+  max_chunk_words: 12                 # larger chunks = fewer synthesis calls = fewer gaps
 
 audio:
   sample_rate: 16000
