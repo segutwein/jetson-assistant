@@ -13,7 +13,10 @@ Commands:
 
 import os
 import sys
+import select
 import subprocess
+import termios
+import tty
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent))
@@ -49,6 +52,47 @@ app = typer.Typer(
     add_completion=False,
     pretty_exceptions_enable=False,
 )
+
+
+# ── Countdown prompt ───────────────────────────────────────────────
+
+def prompt_with_countdown(
+    text: str,
+    choices: list[str],
+    default: str,
+    timeout: int = 5,
+) -> str:
+    """Show a prompt with a countdown. Auto-selects *default* if no key is
+    pressed within *timeout* seconds. Any keypress cancels the timer and
+    falls through to a normal interactive prompt."""
+    if not sys.stdin.isatty():
+        return default
+
+    fd = sys.stdin.fileno()
+    old = termios.tcgetattr(fd)
+    try:
+        tty.setcbreak(fd)
+        for remaining in range(timeout, 0, -1):
+            sys.stdout.write(
+                f"\r  {text} [{default}]  —  auto-select in {remaining}s  "
+                "(press any key to choose manually): "
+            )
+            sys.stdout.flush()
+            ready, _, _ = select.select([sys.stdin], [], [], 1.0)
+            if ready:
+                sys.stdin.read(1)  # discard the keypress
+                break
+        else:
+            sys.stdout.write(f"\r  Auto-selected: {default}" + " " * 50 + "\n")
+            sys.stdout.flush()
+            return default
+    finally:
+        termios.tcsetattr(fd, termios.TCSADRAIN, old)
+
+    # User pressed a key — restore terminal and show normal prompt
+    sys.stdout.write("\r" + " " * 80 + "\r")
+    sys.stdout.flush()
+    return Prompt.ask(text, choices=choices, default=default)
 
 
 # ── setup ─────────────────────────────────────────────────────────
@@ -376,11 +420,8 @@ def start(
             console.print(f"      [dim]{m.parent}[/dim]")
 
         console.print()
-        choice = Prompt.ask(
-            "Select model",
-            choices=[str(i) for i in range(1, len(models) + 1)],
-            default="1",
-        )
+        choices = [str(i) for i in range(1, len(models) + 1)]
+        choice = prompt_with_countdown("Select model", choices, default="1")
         model_path = models[int(choice) - 1]
 
     if not model_path.exists():
