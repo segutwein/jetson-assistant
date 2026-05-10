@@ -155,7 +155,7 @@ def setup(
     project_dir = Path(__file__).parent
 
     # ── Step 1: Prerequisites ──────────────────────────────────
-    console.print("\n[bold]Step 1/7 — Checking prerequisites[/bold]")
+    console.print("\n[bold]Step 1/8 — Checking prerequisites[/bold]")
     prereqs = check_prerequisites()
     missing_required = []
     missing_optional = []
@@ -190,7 +190,7 @@ def setup(
         raise typer.Exit(1)
 
     # ── Step 2: Build llama.cpp ────────────────────────────────
-    console.print("\n[bold]Step 2/7 — llama.cpp[/bold]")
+    console.print("\n[bold]Step 2/8 — llama.cpp[/bold]")
 
     if skip_llama:
         console.print("  [dim]Skipped (--skip-llama)[/dim]")
@@ -216,7 +216,7 @@ def setup(
             console.print(f"\n  [green]✓ Built:[/green] [dim]{llama_server_path()}[/dim]")
 
     # ── Step 3: Download model ─────────────────────────────────
-    console.print("\n[bold]Step 3/7 — Model[/bold]")
+    console.print("\n[bold]Step 3/8 — Model[/bold]")
     console.print(
         "  [dim]A free HuggingFace account is required to download models.\n"
         "  If not logged in yet: [bold]hf auth login[/bold]  "
@@ -238,7 +238,7 @@ def setup(
             _model_download_dialog()
 
     # ── Step 4: Python venv ────────────────────────────────────
-    console.print("\n[bold]Step 4/7 — Python environment[/bold]")
+    console.print("\n[bold]Step 4/8 — Python environment[/bold]")
 
     if skip_venv:
         console.print("  [dim]Skipped (--skip-venv)[/dim]")
@@ -260,7 +260,7 @@ def setup(
                 )
 
     # ── Step 5: CTranslate2 CUDA ──────────────────────────────
-    console.print("\n[bold]Step 5/7 — CTranslate2 (STT GPU acceleration)[/bold]")
+    console.print("\n[bold]Step 5/8 — CTranslate2 (STT GPU acceleration)[/bold]")
 
     venv_dir = project_dir / "venv"
     if ctranslate2_has_cuda(venv_dir):
@@ -286,7 +286,7 @@ def setup(
             console.print("  [dim]Skipped — STT will run on CPU.[/dim]")
 
     # ── Step 6: TTS voice models ───────────────────────────────
-    console.print("\n[bold]Step 6/7 — TTS voice models[/bold]")
+    console.print("\n[bold]Step 6/8 — TTS voice models[/bold]")
 
     from app.tts import VOICES_DIR, _download_kokoro_models_if_missing
 
@@ -314,7 +314,7 @@ def setup(
             console.print("  [dim]Skipped — will download on first use.[/dim]")
 
     # ── Step 7: Whisper STT model ──────────────────────────────
-    console.print("\n[bold]Step 7/7 — STT model (Whisper)[/bold]")
+    console.print("\n[bold]Step 7/8 — STT model (Whisper)[/bold]")
 
     from app.config import Config
 
@@ -331,6 +331,10 @@ def setup(
                 console.print("  [yellow]⚠ Download failed — will retry on first use[/yellow]")
         else:
             console.print("  [dim]Skipped — will download on first use.[/dim]")
+
+    # ── Step 8: Personal configuration ────────────────────────
+    console.print("\n[bold]Step 8/8 — Personal configuration[/bold]")
+    _run_config_wizard(first_time=True)
 
     # ── Done ───────────────────────────────────────────────────
     console.print()
@@ -455,15 +459,25 @@ def start(
     ),
 ):
     """Start the assistant: pick a model, launch llama-server, start voice or text chat."""
+    from app.config import Config as _Cfg
+
+    text_from_cli = text  # True only if --text was explicitly passed
+
     # ── First-time config wizard ───────────────────────────────
-    if not _LOCAL_CONFIG_PATH.exists():
+    first_run = not _LOCAL_CONFIG_PATH.exists()
+    if first_run:
         _run_config_wizard(first_time=True)
         console.print()
+    else:
+        # Show settings summary + offer to change before starting
+        _print_settings_summary(_Cfg.load())
+        console.print()
+        if confirm_with_countdown("Change settings?", default=False, timeout=5):
+            _run_config_wizard(first_time=False)
+            console.print()
 
-    # Apply config default for mode after wizard may have written it
-    if not text:
-        from app.config import Config as _Cfg
-
+    # Determine mode — CLI flag overrides config
+    if not text_from_cli:
         text = _Cfg.load().app.mode == "text"
 
     title = "Jetson Text Assistant" if text else "Jetson Voice Assistant"
@@ -1253,6 +1267,29 @@ def write_local_config(path: Path, changes: dict) -> None:
     with open(path, "w") as f:
         f.write(_LOCAL_CONFIG_HEADER)
         yaml.dump(existing, f, default_flow_style=False, allow_unicode=True)
+
+
+def _print_settings_summary(cfg) -> None:
+    """Print a one-screen summary of the active configuration."""
+    if cfg.tts.backend == "piper":
+        tts = f"piper · {cfg.tts.piper_model} · speed {cfg.tts.speed}"
+    else:
+        tts = f"kokoro · {cfg.tts.voice} · speed {cfg.tts.speed}"
+
+    llm = cfg.llm.model or "[dim](not set)[/dim]"
+    prompt_short = (
+        cfg.llm.system_prompt[:72] + "…"
+        if len(cfg.llm.system_prompt) > 72
+        else cfg.llm.system_prompt
+    )
+
+    W = 10
+    console.print()
+    console.print(f"  [bold]{'Mode':<{W}}[/bold]{cfg.app.mode}")
+    console.print(f"  [bold]{'Language':<{W}}[/bold]{cfg.stt.language}  ·  STT: {cfg.stt.model}")
+    console.print(f"  [bold]{'TTS':<{W}}[/bold]{tts}")
+    console.print(f"  [bold]{'LLM':<{W}}[/bold]{llm}")
+    console.print(f"  [bold]{'Prompt':<{W}}[/bold][dim]{prompt_short}[/dim]")
 
 
 def _run_config_wizard(local_path: Path = _LOCAL_CONFIG_PATH, first_time: bool = False) -> bool:
