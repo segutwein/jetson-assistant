@@ -8,6 +8,7 @@ Commands:
   stop      Stop llama-server and voice chat
   status    Show what is running and memory usage
   optimize  Apply memory optimizations
+  config    Set personal defaults (TTS backend, language, …) → settings.local.yaml
   test      Test individual components (--llm, --stt, --tts, --vad, --mic, --all)
 """
 
@@ -990,6 +991,130 @@ def benchmark(
         wait_fn=wait_for_llama_server,
         find_models_fn=find_gguf_models,
     )
+
+
+@app.command()
+def config():
+    """Interactively set personal defaults — saved to config/settings.local.yaml (gitignored)."""
+    import yaml
+
+    from app.config import Config
+
+    LOCAL_PATH = Path(__file__).parent / "config" / "settings.local.yaml"
+
+    cfg = Config.load()
+
+    console.print(
+        Panel.fit(
+            "[bold cyan]Personal Configuration[/bold cyan]\n"
+            "[dim]Saved to config/settings.local.yaml — never committed to git\n"
+            "Press Enter to keep the current value[/dim]",
+            border_style="cyan",
+        )
+    )
+
+    changes: dict = {}
+
+    # ── TTS ───────────────────────────────────────────────────────────
+    console.print("\n[bold]TTS[/bold]")
+
+    backend = Prompt.ask(
+        "  Backend",
+        choices=["kokoro", "piper"],
+        default=cfg.tts.backend,
+    )
+    if backend != cfg.tts.backend:
+        changes.setdefault("tts", {})["backend"] = backend
+
+    if backend == "piper":
+        piper_model = Prompt.ask(
+            "  Piper model [dim](browse: rhasspy.github.io/piper-samples)[/dim]",
+            default=cfg.tts.piper_model,
+        )
+        if piper_model != cfg.tts.piper_model:
+            changes.setdefault("tts", {})["piper_model"] = piper_model
+    else:
+        kokoro_voices = ["af_sarah", "af_bella", "am_adam", "bf_emma", "bm_george"]
+        voice = Prompt.ask(
+            "  Kokoro voice",
+            choices=kokoro_voices,
+            default=cfg.tts.voice if cfg.tts.voice in kokoro_voices else "af_sarah",
+        )
+        if voice != cfg.tts.voice:
+            changes.setdefault("tts", {})["voice"] = voice
+
+    speed_str = Prompt.ask("  Speed", default=str(cfg.tts.speed))
+    try:
+        speed = float(speed_str)
+        if speed != cfg.tts.speed:
+            changes.setdefault("tts", {})["speed"] = speed
+    except ValueError:
+        console.print("  [yellow]Invalid speed — keeping current value[/yellow]")
+
+    # ── STT ───────────────────────────────────────────────────────────
+    console.print("\n[bold]STT[/bold]")
+
+    stt_lang = Prompt.ask(
+        "  Language [dim](en, de, fr, es, …)[/dim]",
+        default=cfg.stt.language,
+    )
+    if stt_lang != cfg.stt.language:
+        changes.setdefault("stt", {})["language"] = stt_lang
+
+    stt_model = Prompt.ask(
+        "  Whisper model [dim](small.en = English only, small = multilingual)[/dim]",
+        choices=["tiny.en", "tiny", "base.en", "base", "small.en", "small", "medium.en", "medium"],
+        default=cfg.stt.model,
+    )
+    if stt_model != cfg.stt.model:
+        changes.setdefault("stt", {})["model"] = stt_model
+
+    # ── LLM ───────────────────────────────────────────────────────────
+    console.print("\n[bold]LLM[/bold]")
+
+    system_prompt = Prompt.ask("  System prompt", default=cfg.llm.system_prompt)
+    if system_prompt != cfg.llm.system_prompt:
+        changes.setdefault("llm", {})["system_prompt"] = system_prompt
+
+    max_tokens_str = Prompt.ask("  Max tokens", default=str(cfg.llm.max_tokens))
+    try:
+        max_tokens = int(max_tokens_str)
+        if max_tokens != cfg.llm.max_tokens:
+            changes.setdefault("llm", {})["max_tokens"] = max_tokens
+    except ValueError:
+        console.print("  [yellow]Invalid value — keeping current[/yellow]")
+
+    # ── Preview + save ────────────────────────────────────────────────
+    console.print()
+    if not changes:
+        console.print("[dim]No changes — nothing to save.[/dim]")
+        return
+
+    # Load existing local config (if any) and merge new changes on top
+    existing: dict = {}
+    if LOCAL_PATH.exists():
+        with open(LOCAL_PATH) as f:
+            existing = yaml.safe_load(f) or {}
+    for section, values in changes.items():
+        existing.setdefault(section, {}).update(values)
+
+    preview = yaml.dump(existing, default_flow_style=False, allow_unicode=True).strip()
+    console.print(
+        Panel(
+            f"[green]{preview}[/green]",
+            title="config/settings.local.yaml",
+            border_style="green",
+        )
+    )
+
+    if Confirm.ask("Save?", default=True):
+        LOCAL_PATH.parent.mkdir(parents=True, exist_ok=True)
+        with open(LOCAL_PATH, "w") as f:
+            yaml.dump(existing, f, default_flow_style=False, allow_unicode=True)
+        console.print(f"  [green]✓ Saved to {LOCAL_PATH}[/green]")
+        console.print("  Takes effect on next [cyan]./jetson-assistant start[/cyan]")
+    else:
+        console.print("[yellow]Cancelled — nothing saved.[/yellow]")
 
 
 @app.command()
