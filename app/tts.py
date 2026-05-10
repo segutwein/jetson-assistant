@@ -336,9 +336,16 @@ class PiperTTS:
         model_path = PIPER_DIR / f"{self.model}.onnx"
         config_path = PIPER_DIR / f"{self.model}.onnx.json"
         try:
-            self._piper_voice = PiperVoice.load(model_path, config_path=config_path)
+            import onnxruntime as ort
+
+            use_cuda = "CUDAExecutionProvider" in ort.get_available_providers()
+            self._piper_voice = PiperVoice.load(
+                model_path, config_path=config_path, use_cuda=use_cuda
+            )
             self._sample_rate = self._piper_voice.config.sample_rate
-            print(f"Piper TTS loaded — model: {self.model}, {self._sample_rate} Hz")
+            provider = "CUDA" if use_cuda else "CPU"
+            self.provider = provider
+            print(f"Piper TTS loaded — model: {self.model}, {self._sample_rate} Hz, {provider}")
         except Exception as e:
             print(f"Piper load failed: {e}")
             return False
