@@ -770,9 +770,19 @@ def _optimize_apply(skip_prompts: bool = False):
         )
     )
 
-    if load_state():
-        console.print("[yellow]Optimizations already applied.[/yellow]")
-        console.print("Run [bold]optimize --restore[/bold] first to reapply.")
+    state = load_state()
+    if state:
+        # If jetson_clocks was applied but autostart service not yet installed, offer it now
+        if "jetson_clocks" in state.get("applied", []) and not _optimize_service_active():
+            console.print("[yellow]Optimizations already applied.[/yellow]")
+            if skip_prompts or Confirm.ask(
+                "Apply clock optimizations automatically on every boot? (installs systemd service)",
+                default=True,
+            ):
+                _install_optimize_service()
+        else:
+            console.print("[yellow]Optimizations already applied.[/yellow]")
+            console.print("Run [bold]optimize --restore[/bold] first to reapply.")
         raise typer.Exit()
 
     console.print("\n[bold]Analyzing system...[/bold]")
