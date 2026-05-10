@@ -124,15 +124,33 @@ def find_pa_sink(name_hint: str) -> Optional[str]:
 
 
 def play_audio(audio: np.ndarray, sample_rate: int, sink: Optional[str] = None):
-    """Play int16 audio via paplay (PulseAudio) or aplay fallback."""
+    """Play int16 audio via paplay (PulseAudio) or aplay fallback.
+
+    sink=None  → paplay with PulseAudio default sink (respects BT speaker etc.)
+    sink=<name> → paplay with a specific PA sink
+    Falls back to aplay if paplay is not available.
+    """
     raw = audio.astype(np.int16).tobytes()
+    paplay_args = ["--format=s16le", f"--rate={sample_rate}", "--channels=1", "--raw"]
+    if sink:
+        cmd = ["paplay", f"--device={sink}"] + paplay_args
+    else:
+        cmd = ["paplay"] + paplay_args
     try:
-        if sink:
-            cmd = ["paplay", f"--device={sink}", "--format=s16le",
-                   f"--rate={sample_rate}", "--channels=1", "--raw"]
-        else:
-            cmd = ["aplay", "-f", "S16_LE", "-r", str(sample_rate),
-                   "-c", "1", "-t", "raw", "-q"]
+        p = subprocess.Popen(cmd, stdin=subprocess.PIPE, stderr=subprocess.DEVNULL)
+        try:
+            p.stdin.write(raw)
+        finally:
+            p.stdin.close()
+        p.wait(timeout=30)
+        return
+    except FileNotFoundError:
+        pass
+    except Exception:
+        return
+    # aplay fallback when paplay is not installed
+    try:
+        cmd = ["aplay", "-f", "S16_LE", "-r", str(sample_rate), "-c", "1", "-t", "raw", "-q"]
         p = subprocess.Popen(cmd, stdin=subprocess.PIPE, stderr=subprocess.DEVNULL)
         try:
             p.stdin.write(raw)
