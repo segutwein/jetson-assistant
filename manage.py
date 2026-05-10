@@ -462,6 +462,15 @@ def start(
         )
     )
 
+    # ── First-time config wizard ───────────────────────────────
+    if not _LOCAL_CONFIG_PATH.exists():
+        console.print(
+            "\n[yellow]No personal config found.[/yellow] "
+            "Let's set up your preferences — takes about 30 seconds.\n"
+        )
+        _run_config_wizard(first_time=True)
+        console.print()
+
     # ── Check llama-server binary ──────────────────────────────
     llama_bin = find_llama_server()
     if not llama_bin:
@@ -993,20 +1002,40 @@ def benchmark(
     )
 
 
-@app.command()
-def config():
-    """Interactively set personal defaults — saved to config/settings.local.yaml (gitignored)."""
+_LOCAL_CONFIG_PATH = Path(__file__).parent / "config" / "settings.local.yaml"
+
+
+def write_local_config(path: Path, changes: dict) -> None:
+    """Merge *changes* into the existing local config file and write it."""
+    import yaml
+
+    existing: dict = {}
+    if path.exists():
+        with open(path) as f:
+            existing = yaml.safe_load(f) or {}
+    for section, values in changes.items():
+        existing.setdefault(section, {}).update(values)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with open(path, "w") as f:
+        yaml.dump(existing, f, default_flow_style=False, allow_unicode=True)
+
+
+def _run_config_wizard(local_path: Path = _LOCAL_CONFIG_PATH, first_time: bool = False) -> bool:
+    """Interactive config wizard. Returns True if something was saved."""
     import yaml
 
     from app.config import Config
 
-    LOCAL_PATH = Path(__file__).parent / "config" / "settings.local.yaml"
-
     cfg = Config.load()
 
+    title = (
+        "[bold cyan]First-time Setup — Personal Preferences[/bold cyan]"
+        if first_time
+        else "[bold cyan]Personal Configuration[/bold cyan]"
+    )
     console.print(
         Panel.fit(
-            "[bold cyan]Personal Configuration[/bold cyan]\n"
+            f"{title}\n"
             "[dim]Saved to config/settings.local.yaml — never committed to git\n"
             "Press Enter to keep the current value[/dim]",
             border_style="cyan",
@@ -1088,12 +1117,15 @@ def config():
     console.print()
     if not changes:
         console.print("[dim]No changes — nothing to save.[/dim]")
-        return
+        # Still create an empty marker file so we don't prompt again
+        if first_time:
+            local_path.parent.mkdir(parents=True, exist_ok=True)
+            local_path.touch()
+        return False
 
-    # Load existing local config (if any) and merge new changes on top
     existing: dict = {}
-    if LOCAL_PATH.exists():
-        with open(LOCAL_PATH) as f:
+    if local_path.exists():
+        with open(local_path) as f:
             existing = yaml.safe_load(f) or {}
     for section, values in changes.items():
         existing.setdefault(section, {}).update(values)
@@ -1108,13 +1140,20 @@ def config():
     )
 
     if Confirm.ask("Save?", default=True):
-        LOCAL_PATH.parent.mkdir(parents=True, exist_ok=True)
-        with open(LOCAL_PATH, "w") as f:
-            yaml.dump(existing, f, default_flow_style=False, allow_unicode=True)
-        console.print(f"  [green]✓ Saved to {LOCAL_PATH}[/green]")
-        console.print("  Takes effect on next [cyan]./jetson-assistant start[/cyan]")
-    else:
-        console.print("[yellow]Cancelled — nothing saved.[/yellow]")
+        write_local_config(local_path, changes)
+        console.print(f"  [green]✓ Saved to {local_path}[/green]")
+        if not first_time:
+            console.print("  Takes effect on next [cyan]./jetson-assistant start[/cyan]")
+        return True
+
+    console.print("[yellow]Cancelled — nothing saved.[/yellow]")
+    return False
+
+
+@app.command()
+def config():
+    """Interactively set personal defaults — saved to config/settings.local.yaml (gitignored)."""
+    _run_config_wizard()
 
 
 @app.command()
