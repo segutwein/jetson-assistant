@@ -454,6 +454,11 @@ def start(
     ),
 ):
     """Start the assistant: pick a model, launch llama-server, start voice or text chat."""
+    # Apply config default for mode if not overridden by CLI flag
+    if not text:
+        from app.config import Config as _Cfg
+
+        text = _Cfg.load().app.mode == "text"
     mode_label = "Text Assistant" if text else "Voice Assistant"
     console.print(
         Panel.fit(
@@ -1057,6 +1062,16 @@ def _run_config_wizard(local_path: Path = _LOCAL_CONFIG_PATH, first_time: bool =
     )
 
     changes: dict = {}
+
+    # ── Mode ──────────────────────────────────────────────────────────
+    console.print("\n[bold]Mode[/bold]")
+    mode = Prompt.ask(
+        "  Interface",
+        choices=["voice", "text"],
+        default=cfg.app.mode,
+    )
+    if mode != cfg.app.mode:
+        changes.setdefault("app", {})["mode"] = mode
 
     # ── TTS ───────────────────────────────────────────────────────────
     console.print("\n[bold]TTS[/bold]")

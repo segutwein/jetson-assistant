@@ -62,6 +62,11 @@ class AudioConfig:
 
 
 @dataclass
+class AppConfig:
+    mode: str = "voice"  # voice or text
+
+
+@dataclass
 class VADConfig:
     speech_threshold: float = 0.008
     silence_duration_ms: int = 500
@@ -75,6 +80,7 @@ class VADConfig:
 
 
 _SECTIONS = [
+    ("app", "app", AppConfig),
     ("llm", "llm", LLMConfig),
     ("stt", "stt", STTConfig),
     ("tts", "tts", TTSConfig),
@@ -90,6 +96,7 @@ def _config_paths(base: Path) -> list[Path]:
 
 @dataclass
 class Config:
+    app: AppConfig = field(default_factory=AppConfig)
     llm: LLMConfig = field(default_factory=LLMConfig)
     stt: STTConfig = field(default_factory=STTConfig)
     tts: TTSConfig = field(default_factory=TTSConfig)
