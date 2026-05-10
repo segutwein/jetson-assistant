@@ -1086,12 +1086,12 @@ def _run_config_wizard(local_path: Path = _LOCAL_CONFIG_PATH, first_time: bool =
 
     if backend == "piper":
         _PIPER_PRESETS = [
-            ("de_DE-thorsten-high", "Thorsten (DE) — high quality male"),
-            ("de_DE-thorsten-medium", "Thorsten (DE) — medium quality male"),
-            ("de_DE-kerstin-low", "Kerstin (DE) — female"),
             ("en_US-lessac-medium", "Lessac (EN-US) — female"),
             ("en_US-ryan-high", "Ryan (EN-US) — high quality male"),
             ("en_GB-alba-medium", "Alba (EN-GB) — female"),
+            ("de_DE-thorsten-high", "Thorsten (DE) — high quality male"),
+            ("de_DE-thorsten-medium", "Thorsten (DE) — medium quality male"),
+            ("de_DE-kerstin-low", "Kerstin (DE) — female"),
         ]
         preset_ids = [p[0] for p in _PIPER_PRESETS]
         current_preset = cfg.tts.piper_model if cfg.tts.piper_model in preset_ids else None
