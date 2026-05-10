@@ -464,10 +464,6 @@ def start(
 
     # ── First-time config wizard ───────────────────────────────
     if not _LOCAL_CONFIG_PATH.exists():
-        console.print(
-            "\n[yellow]No personal config found.[/yellow] "
-            "Let's set up your preferences — takes about 30 seconds.\n"
-        )
         _run_config_wizard(first_time=True)
         console.print()
 
