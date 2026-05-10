@@ -22,8 +22,10 @@ Speak into a microphone and the assistant responds using a local LLM. Speech is 
 |-----------|---------|:---:|
 | **LLM** | llama.cpp (native, no Docker) | GPU (CUDA) |
 | **STT** | faster-whisper | GPU (CUDA) |
-| **TTS** | Kokoro ONNX | GPU (CUDA) |
+| **TTS** | Kokoro ONNX *(default)* or Piper | GPU (CUDA) / CPU |
 | **VAD** | Silero VAD | CPU |
+
+**TTS backends:** Kokoro (English, GPU, high quality) and Piper (multilingual incl. German, CPU, fast) are both supported and switchable via config or CLI flag.
 
 llama.cpp is compiled directly on the Jetson — no Docker, no Python wrapper overhead. This keeps the memory footprint as small as possible on the shared 8 GB unified memory.
 
@@ -84,7 +86,7 @@ All settings live in `config/settings.yaml`:
 
 **Selecting your microphone:** set `audio.input_device` in `settings.yaml` to a substring of your device name (check `arecord -l` or run `./jetson-assistant test --mic`), or leave it `null` to auto-detect.
 
-**Language:** set `stt.language` (e.g. `"de"`, `"fr"`) and use a matching Kokoro voice + `tts.lang` code (e.g. `"de"`, `"fr-fr"`). Switch the STT model from `small.en` to `small` for multilingual transcription.
+**Language / German:** For German, switch to Piper TTS which has native German voices. Set `tts.backend: piper` and `tts.piper_model: de_DE-thorsten-medium` in `settings.yaml`, and set `stt.language: de` with `stt.model: small` for multilingual STT. Or use the CLI flag: `./jetson-assistant start --tts-backend piper --piper-model de_DE-thorsten-medium`.
 
 **Bluetooth speaker:** use `scripts/connect-bt-speaker.sh` to pair and set a Bluetooth speaker as the default PulseAudio sink.
 
