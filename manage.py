@@ -454,23 +454,22 @@ def start(
     ),
 ):
     """Start the assistant: pick a model, launch llama-server, start voice or text chat."""
-    # Apply config default for mode if not overridden by CLI flag
-    if not text:
-        from app.config import Config as _Cfg
-
-        text = _Cfg.load().app.mode == "text"
-    mode_label = "Text Assistant" if text else "Voice Assistant"
-    console.print(
-        Panel.fit(
-            f"[bold cyan]Jetson {mode_label}[/bold cyan]",
-            border_style="cyan",
-        )
-    )
+    console.print(Panel.fit("[bold cyan]Jetson Voice Assistant[/bold cyan]", border_style="cyan"))
 
     # ── First-time config wizard ───────────────────────────────
     if not _LOCAL_CONFIG_PATH.exists():
         _run_config_wizard(first_time=True)
         console.print()
+
+    # Apply config default for mode after wizard may have written it
+    if not text:
+        from app.config import Config as _Cfg
+
+        text = _Cfg.load().app.mode == "text"
+    if text:
+        console.print(
+            Panel.fit("[bold cyan]Jetson Text Assistant[/bold cyan]", border_style="cyan")
+        )
 
     # ── Check llama-server binary ──────────────────────────────
     llama_bin = find_llama_server()
