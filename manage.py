@@ -1085,10 +1085,34 @@ def _run_config_wizard(local_path: Path = _LOCAL_CONFIG_PATH, first_time: bool =
         changes.setdefault("tts", {})["backend"] = backend
 
     if backend == "piper":
-        piper_model = Prompt.ask(
-            "  Piper model [dim](browse: rhasspy.github.io/piper-samples)[/dim]",
-            default=cfg.tts.piper_model,
+        _PIPER_PRESETS = [
+            ("de_DE-thorsten-high", "Thorsten (DE) — high quality male"),
+            ("de_DE-thorsten-medium", "Thorsten (DE) — medium quality male"),
+            ("de_DE-kerstin-low", "Kerstin (DE) — female"),
+            ("en_US-lessac-medium", "Lessac (EN-US) — female"),
+            ("en_US-ryan-high", "Ryan (EN-US) — high quality male"),
+            ("en_GB-alba-medium", "Alba (EN-GB) — female"),
+        ]
+        preset_ids = [p[0] for p in _PIPER_PRESETS]
+        current_preset = cfg.tts.piper_model if cfg.tts.piper_model in preset_ids else None
+        console.print("  Piper voice:")
+        for i, (model_id, label) in enumerate(_PIPER_PRESETS, 1):
+            marker = "[cyan]>[/cyan] " if model_id == current_preset else "  "
+            console.print(f"  {marker}[cyan]{i}[/cyan]  {label}  [dim]{model_id}[/dim]")
+        console.print(
+            f"    [cyan]{len(_PIPER_PRESETS) + 1}[/cyan]  Other — enter model name manually"
         )
+        preset_choices = [str(i) for i in range(1, len(_PIPER_PRESETS) + 2)]
+        default_choice = str(preset_ids.index(current_preset) + 1) if current_preset else "1"
+        choice = Prompt.ask("  Select", choices=preset_choices, default=default_choice)
+        idx = int(choice) - 1
+        if idx < len(_PIPER_PRESETS):
+            piper_model = _PIPER_PRESETS[idx][0]
+        else:
+            piper_model = Prompt.ask(
+                "  Model name [dim](see rhasspy.github.io/piper-samples)[/dim]",
+                default=cfg.tts.piper_model,
+            )
         if piper_model != cfg.tts.piper_model:
             changes.setdefault("tts", {})["piper_model"] = piper_model
     else:
