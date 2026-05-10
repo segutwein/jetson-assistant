@@ -507,19 +507,21 @@ def start(
             )
             raise typer.Exit(1)
 
-        # Use config default if set and found, otherwise fall back to first model
-        default_idx = next((i for i, m in enumerate(models) if m.name == cfg_model), 0)
-
-        console.print("\n[bold]Available models:[/bold]")
-        for i, m in enumerate(models, 1):
-            size_gb = m.stat().st_size / 1e9
-            console.print(f"  [cyan]{i}[/cyan]  {m.name}  [dim]({size_gb:.1f} GB)[/dim]")
-            console.print(f"      [dim]{m.parent}[/dim]")
-
-        console.print()
-        choices = [str(i) for i in range(1, len(models) + 1)]
-        choice = prompt_with_countdown("Select model", choices, default=str(default_idx + 1))
-        model_path = models[int(choice) - 1]
+        # If a model is configured and exists, use it directly — no prompt needed
+        configured = next((m for m in models if m.name == cfg_model), None)
+        if configured:
+            model_path = configured
+        else:
+            # No model configured (or not found) — ask once
+            console.print("\n[bold]Available models:[/bold]")
+            for i, m in enumerate(models, 1):
+                size_gb = m.stat().st_size / 1e9
+                console.print(f"  [cyan]{i}[/cyan]  {m.name}  [dim]({size_gb:.1f} GB)[/dim]")
+                console.print(f"      [dim]{m.parent}[/dim]")
+            console.print()
+            choices = [str(i) for i in range(1, len(models) + 1)]
+            choice = Prompt.ask("  Select model", choices=choices, default="1")
+            model_path = models[int(choice) - 1]
 
     if not model_path.exists():
         console.print(f"[red]✗ Model not found: {model_path}[/red]")
