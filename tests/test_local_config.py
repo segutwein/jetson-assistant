@@ -218,7 +218,7 @@ def test_ready_phrase_default_is_english(tmp_path):
     from app.config import Config
 
     cfg = Config.load(config_path=str(base))
-    assert cfg.tts.ready_phrase == "Ready."
+    assert cfg.tts.ready_phrase == "Ready!"
 
 
 # ── local_config_deleted_after_load ───────────────────────────────

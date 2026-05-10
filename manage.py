@@ -1099,35 +1099,35 @@ _LOCAL_CONFIG_PATH = Path(__file__).parent / "config" / "settings.local.yaml"
 _LANGUAGE_DEFAULTS: dict[str, dict[str, str]] = {
     "de": {
         "system_prompt": "Du bist ein hilfreicher KI-Assistent. Antworte auf Deutsch.",
-        "ready_phrase": "Bereit.",
+        "ready_phrase": "Bereit!",
     },
     "fr": {
         "system_prompt": "Tu es un assistant IA utile. Réponds en français.",
-        "ready_phrase": "Prêt.",
+        "ready_phrase": "Prêt!",
     },
     "es": {
         "system_prompt": "Eres un asistente de IA útil. Responde en español.",
-        "ready_phrase": "Listo.",
+        "ready_phrase": "Listo!",
     },
     "it": {
         "system_prompt": "Sei un assistente IA utile. Rispondi in italiano.",
-        "ready_phrase": "Pronto.",
+        "ready_phrase": "Pronto!",
     },
     "pt": {
         "system_prompt": "És um assistente de IA útil. Responde em português.",
-        "ready_phrase": "Pronto.",
+        "ready_phrase": "Pronto!",
     },
     "nl": {
         "system_prompt": "Je bent een behulpzame AI-assistent. Antwoord in het Nederlands.",
-        "ready_phrase": "Klaar.",
+        "ready_phrase": "Klaar!",
     },
     "pl": {
         "system_prompt": "Jesteś pomocnym asystentem AI. Odpowiadaj po polsku.",
-        "ready_phrase": "Gotowy.",
+        "ready_phrase": "Gotowy!",
     },
     "ru": {
         "system_prompt": "Ты полезный ИИ-ассистент. Отвечай на русском.",
-        "ready_phrase": "Готов.",
+        "ready_phrase": "Готов!",
     },
     "zh": {
         "system_prompt": "你是一个有用的AI助手。请用中文回答。",
