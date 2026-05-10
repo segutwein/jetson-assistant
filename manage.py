@@ -1328,14 +1328,13 @@ def _run_config_wizard(local_path: Path = _LOCAL_CONFIG_PATH, first_time: bool =
         )
 
     system_prompt = Prompt.ask("  System prompt", default=_default_system_prompt)
-    if system_prompt != cfg.llm.system_prompt:
-        changes.setdefault("llm", {})["system_prompt"] = system_prompt
+    # Always persist so settings.yaml changes don't silently override the user's choice
+    changes.setdefault("llm", {})["system_prompt"] = system_prompt
 
     ready_phrase = Prompt.ask(
         "  Ready phrase [dim](spoken on startup)[/dim]", default=_default_ready_phrase
     )
-    if ready_phrase != cfg.tts.ready_phrase:
-        changes.setdefault("tts", {})["ready_phrase"] = ready_phrase
+    changes.setdefault("tts", {})["ready_phrase"] = ready_phrase
 
     max_tokens_str = Prompt.ask("  Max tokens", default=str(cfg.llm.max_tokens))
     try:
