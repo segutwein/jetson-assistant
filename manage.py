@@ -478,6 +478,9 @@ def start(
     model_path = Path(model) if model else None
 
     if model_path is None:
+        from app.config import Config
+
+        cfg_model = Config.load().llm.model
         models = find_gguf_models()
         if not models:
             console.print("[red]✗ No .gguf models found.[/red]")
@@ -488,6 +491,9 @@ def start(
             )
             raise typer.Exit(1)
 
+        # Use config default if set and found, otherwise fall back to first model
+        default_idx = next((i for i, m in enumerate(models) if m.name == cfg_model), 0)
+
         console.print("\n[bold]Available models:[/bold]")
         for i, m in enumerate(models, 1):
             size_gb = m.stat().st_size / 1e9
@@ -496,7 +502,7 @@ def start(
 
         console.print()
         choices = [str(i) for i in range(1, len(models) + 1)]
-        choice = prompt_with_countdown("Select model", choices, default="1")
+        choice = prompt_with_countdown("Select model", choices, default=str(default_idx + 1))
         model_path = models[int(choice) - 1]
 
     if not model_path.exists():
@@ -1108,6 +1114,20 @@ def _run_config_wizard(local_path: Path = _LOCAL_CONFIG_PATH, first_time: bool =
 
     # ── LLM ───────────────────────────────────────────────────────────
     console.print("\n[bold]LLM[/bold]")
+
+    gguf_models = find_gguf_models()
+    if gguf_models:
+        model_names = [m.name for m in gguf_models]
+        current_model = cfg.llm.model if cfg.llm.model in model_names else model_names[0]
+        llm_model = Prompt.ask(
+            "  Model",
+            choices=model_names,
+            default=current_model,
+        )
+        if llm_model != cfg.llm.model:
+            changes.setdefault("llm", {})["model"] = llm_model
+    else:
+        console.print("  [dim]No .gguf models found in ~/models — skipping[/dim]")
 
     system_prompt = Prompt.ask("  System prompt", default=cfg.llm.system_prompt)
     if system_prompt != cfg.llm.system_prompt:
