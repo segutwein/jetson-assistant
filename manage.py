@@ -1191,8 +1191,13 @@ def _run_config_wizard(local_path: Path = _LOCAL_CONFIG_PATH, first_time: bool =
 
     existing: dict = {}
     if local_path.exists():
-        with open(local_path) as f:
-            existing = yaml.safe_load(f) or {}
+        try:
+            with open(local_path) as f:
+                loaded = yaml.safe_load(f)
+            if isinstance(loaded, dict):
+                existing = loaded
+        except Exception:
+            pass
     for section, values in changes.items():
         existing.setdefault(section, {}).update(values)
 
