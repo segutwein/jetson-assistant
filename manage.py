@@ -1361,29 +1361,44 @@ def _run_config_wizard(local_path: Path = _LOCAL_CONFIG_PATH, first_time: bool =
         changes.setdefault("tts", {})["backend"] = backend
 
     if backend == "piper":
-        _PIPER_PRESETS: list[tuple[str, str]] = [
+        # All known presets — filtered to the selected language below
+        _ALL_PIPER_PRESETS: list[tuple[str, str]] = [
             ("en_US-lessac-medium", "Lessac    (EN-US) — female"),
             ("en_US-ryan-high", "Ryan      (EN-US) — high quality male"),
             ("en_GB-alba-medium", "Alba      (EN-GB) — female"),
-            ("de_DE-thorsten-high", "Thorsten  (DE)   — high quality male"),
-            ("de_DE-thorsten-medium", "Thorsten  (DE)   — medium quality male"),
-            ("de_DE-kerstin-low", "Kerstin   (DE)   — female"),
-            ("__other__", "Other — enter model name manually"),
+            ("de_DE-thorsten-high", "Thorsten  (DE) — high quality male"),
+            ("de_DE-thorsten-medium", "Thorsten  (DE) — medium quality male"),
+            ("de_DE-kerstin-low", "Kerstin   (DE) — female"),
+            ("fr_FR-upmc-medium", "UPMC      (FR) — male"),
+            ("es_ES-sharvard-medium", "Sharvard  (ES) — male"),
+            ("it_IT-riccardo-x_low", "Riccardo  (IT) — male"),
+            ("pt_PT-tugão-medium", "Tugão     (PT) — male"),
+            ("nl_NL-mls-medium", "MLS       (NL) — female"),
+            ("pl_PL-mls_6892-low", "MLS 6892  (PL) — male"),
+            ("ru_RU-ruslan-medium", "Ruslan    (RU) — male"),
         ]
-        current_preset = (
-            cfg.tts.piper_model
-            if any(k == cfg.tts.piper_model for k, _ in _PIPER_PRESETS)
-            else "__other__"
-        )
+        lang_presets = [
+            (mid, label) for mid, label in _ALL_PIPER_PRESETS if mid.startswith(f"{stt_lang}_")
+        ]
         console.print("  Piper voice:")
-        piper_key = _menu("Select", _PIPER_PRESETS, current_preset)
-        if piper_key == "__other__":
-            piper_model = Prompt.ask(
-                "  Model name [dim](see rhasspy.github.io/piper-samples)[/dim]",
-                default=cfg.tts.piper_model,
+        if lang_presets:
+            piper_options = lang_presets + [("__other__", "Other — enter model name manually")]
+            current_preset = (
+                cfg.tts.piper_model
+                if any(k == cfg.tts.piper_model for k, _ in piper_options)
+                else "__other__"
             )
+            piper_key = _menu("Select", piper_options, current_preset)
+            if piper_key == "__other__":
+                console.print("  [dim]Browse all voices: rhasspy.github.io/piper-samples[/dim]")
+                piper_model = Prompt.ask("  Model name", default=cfg.tts.piper_model)
+            else:
+                piper_model = piper_key
         else:
-            piper_model = piper_key
+            console.print(
+                f"  [dim]No presets for '{stt_lang}' — browse: rhasspy.github.io/piper-samples[/dim]"
+            )
+            piper_model = Prompt.ask("  Model name", default=cfg.tts.piper_model)
         if piper_model != cfg.tts.piper_model:
             changes.setdefault("tts", {})["piper_model"] = piper_model
     else:
