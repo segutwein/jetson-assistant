@@ -83,6 +83,11 @@ _SECTIONS = [
 ]
 
 
+def _config_paths(base: Path) -> list[Path]:
+    """Return [settings.yaml, settings.local.yaml] — local overrides base."""
+    return [base, base.with_name("settings.local.yaml")]
+
+
 @dataclass
 class Config:
     llm: LLMConfig = field(default_factory=LLMConfig)
@@ -96,19 +101,19 @@ class Config:
         if config_path is None:
             config_path = Path(__file__).parent.parent / "config" / "settings.yaml"
         config = cls()
-        if not os.path.exists(config_path):
-            config._apply_env_overrides()
-            return config
-        try:
-            with open(config_path) as f:
-                data = yaml.safe_load(f) or {}
-            for yaml_key, attr_name, _ in _SECTIONS:
-                section_obj = getattr(config, attr_name)
-                for k, v in data.get(yaml_key, {}).items():
-                    if hasattr(section_obj, k):
-                        setattr(section_obj, k, v)
-        except Exception as e:
-            print(f"Error loading config: {e}")
+        for path in _config_paths(Path(config_path)):
+            if not path.exists():
+                continue
+            try:
+                with open(path) as f:
+                    data = yaml.safe_load(f) or {}
+                for yaml_key, attr_name, _ in _SECTIONS:
+                    section_obj = getattr(config, attr_name)
+                    for k, v in data.get(yaml_key, {}).items():
+                        if hasattr(section_obj, k):
+                            setattr(section_obj, k, v)
+            except Exception as e:
+                print(f"Error loading config {path.name}: {e}")
         config._apply_env_overrides()
         return config
 
