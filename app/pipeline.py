@@ -471,10 +471,12 @@ def stream_and_speak(
     few_shot: Optional[list[dict]] = None,
     first_chunk_words: int = 3,
     max_chunk_words: int = 8,
+    _retry: bool = True,
 ) -> tuple[str, float, Optional[float]]:
     """Stream LLM response while chunking text to TTS for real-time playback.
 
     Returns (full_response, elapsed_seconds, time_to_first_token).
+    Retries once when the server returns an empty response (stale KV-cache).
     """
     tts_q = None
     tts_thread = None
@@ -522,6 +524,18 @@ def stream_and_speak(
         tts_thread.join(timeout=60)
         if tts_thread.is_alive():
             sys.stderr.write("  [warn] TTS thread did not finish in 60s\n")
+
+    # llama-server occasionally returns [DONE] immediately when its KV-cache
+    # is in a bad state after rapid successive requests. Retry once to recover.
+    if ttft is None and _retry:
+        time.sleep(0.3)
+        return stream_and_speak(
+            llm, tts_obj, prompt, system_prompt,
+            pa_sink=pa_sink, few_shot=few_shot,
+            first_chunk_words=first_chunk_words,
+            max_chunk_words=max_chunk_words,
+            _retry=False,
+        )
 
     return full_resp, dt_llm, ttft
 
