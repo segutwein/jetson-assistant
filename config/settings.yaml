@@ -20,7 +20,7 @@ stt:
 tts:
   backend: "piper"                    # kokoro (GPU, English) or piper (default, CPU, multilingual incl. German)
   voice: "af_sarah"                   # kokoro voice — af_sarah, af_bella, am_adam, bf_emma, bm_george, etc.
-  speed: 1.0
+  speed: 0.8
   lang: "en-us"                       # kokoro language code (ignored when backend=piper)
   piper_model: "en_US-lessac-medium"  # piper model name — e.g. de_DE-thorsten-medium for German
   first_chunk_words: 5                # words before first TTS chunk is sent
