@@ -130,16 +130,10 @@ All blocking prompts in `./jetson-assistant start` auto-select the default
 after 5 seconds. Implemented via `_countdown_wait()` / `confirm_with_countdown()`
 in `manage.py`. Required for unattended autostart (issue #3).
 
-## Open issues (as of 2026-05-10)
+## Open issues
 
-| # | Title | Notes |
-|---|-------|-------|
-| **#45** | Evaluate Piper as sole TTS backend, remove Kokoro | Blocked on #44 merge |
-| **#44** | Add Piper TTS as second backend (PR open) | Closes #14 + #28 |
-| **#42** | Announce memory limit reached via TTS | Small feature |
-| **#28** | Piper TTS as second backend | Covered by PR #44 |
-| **#14** | Multilingual TTS | Covered by PR #44 |
-| **#15** | INT4 quantisation toggle | Not started |
-| **#10** | Wake word detection | Not started |
-| **#4** | Benchmark more models; latency in model picker | Not started |
-| **#3** | Autostart via systemd | Not started |
+```bash
+gh issue list --state open --repo segutwein/jetson-assistant
+gh pr list --state open --repo segutwein/jetson-assistant  # doesn't work — use REST API:
+gh api "repos/segutwein/jetson-assistant/pulls?state=open" --jq '.[] | "#\(.number) \(.title)"'
+```
